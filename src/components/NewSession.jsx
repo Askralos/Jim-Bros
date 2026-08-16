@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Camera, Check } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS } from "../lib/constants";
+import { COLORS, SESSION_FEELINGS } from "../lib/constants";
 import { todayKey } from "../lib/utils";
 import { ExercisesEditor, cleanExercises } from "./ExercisesEditor";
 import { uploadPhoto } from "../lib/api/storage";
@@ -10,6 +10,8 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, onSubmi
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(todayKey());
   const [durationMin, setDurationMin] = useState("");
+  const [feeling, setFeeling] = useState(null);
+  const [comment, setComment] = useState("");
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [participants, setParticipants] = useState([]);
@@ -28,7 +30,15 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, onSubmi
   const submit = () => {
     if (!valid) return;
     onSubmit(
-      { date, title: title.trim(), durationMin: durationMin ? Number(durationMin) : null, photo, participantIds: participants },
+      {
+        date,
+        title: title.trim(),
+        durationMin: durationMin ? Number(durationMin) : null,
+        photo,
+        feeling,
+        comment: comment.trim() || null,
+        participantIds: participants,
+      },
       clean
     );
   };
@@ -50,6 +60,28 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, onSubmi
         <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} placeholder="Durée (min)" type="number" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
       </div>
+
+      <label style={styles.label}>Feeling de la séance (optionnel)</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+        {SESSION_FEELINGS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setFeeling((cur) => (cur === f.key ? null : f.key))}
+            style={{ ...styles.tabPill, ...(feeling === f.key ? styles.tabPillActive : {}) }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <label style={styles.label}>Commentaire (optionnel)</label>
+      <textarea
+        style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
+        placeholder="Comment s'est passée la séance ?"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
 
       {otherProfiles.length > 0 && (
         <>

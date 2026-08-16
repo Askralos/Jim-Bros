@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { X, Check, Camera, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS } from "../lib/constants";
+import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises } from "./ExercisesEditor";
@@ -44,6 +44,8 @@ export function SessionModal({
   const [editMeta, setEditMeta] = useState({
     title: session.title || "", date: session.date, durationMin: session.durationMin || "",
     photo: session.photo || null,
+    feeling: session.feeling || null,
+    comment: session.comment || "",
     participants: session.participants.filter((u) => u !== session.creator),
   });
   const [uploadingSession, setUploadingSession] = useState(false);
@@ -142,6 +144,28 @@ export function SessionModal({
             <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} placeholder="Durée (min)" type="number" value={editMeta.durationMin} onChange={(e) => setEditMeta({ ...editMeta, durationMin: e.target.value })} />
           </div>
 
+          <label style={styles.label}>Feeling de la séance (optionnel)</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {SESSION_FEELINGS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setEditMeta((m) => ({ ...m, feeling: m.feeling === f.key ? null : f.key }))}
+                style={{ ...styles.tabPill, ...(editMeta.feeling === f.key ? styles.tabPillActive : {}) }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <label style={styles.label}>Commentaire (optionnel)</label>
+          <textarea
+            style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
+            placeholder="Comment s'est passée la séance ?"
+            value={editMeta.comment}
+            onChange={(e) => setEditMeta({ ...editMeta, comment: e.target.value })}
+          />
+
           {otherProfiles.length > 0 && (
             <>
               <label style={styles.label}>Fait avec</label>
@@ -165,7 +189,10 @@ export function SessionModal({
               onEditSession({
                 title: editMeta.title.trim(), date: editMeta.date,
                 durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
-                photo: editMeta.photo, participantIds: editMeta.participants, creatorId: session.creator,
+                photo: editMeta.photo,
+                feeling: editMeta.feeling,
+                comment: editMeta.comment.trim() || null,
+                participantIds: editMeta.participants, creatorId: session.creator,
               });
               setMode("view");
             }}
@@ -195,7 +222,13 @@ export function SessionModal({
         <PhotoSlider photos={photos} />
         <p style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>
           {fmtDate(session.date)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
+          {session.feeling ? ` · ${feelingLabel(session.feeling)}` : ""}
         </p>
+        {session.comment && (
+          <p style={{ fontSize: 13, color: COLORS.chalk, marginBottom: 12, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
+            {session.comment}
+          </p>
+        )}
 
         {participants.map((id) => {
           const entry = session.entries[id];

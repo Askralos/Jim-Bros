@@ -1,7 +1,7 @@
 import { supabase } from "../supabaseClient";
 
 const SESSION_SELECT = `
-  id, creator_id, title, date, duration_min, photo_url, created_at,
+  id, creator_id, title, date, duration_min, photo_url, feeling, comment, created_at,
   session_participants ( user_id ),
   session_entries (
     id, user_id, photo_url, submitted_at,
@@ -35,6 +35,8 @@ function shapeSession(row) {
     date: row.date,
     durationMin: row.duration_min,
     photo: row.photo_url,
+    feeling: row.feeling || null,
+    comment: row.comment || null,
     createdAt: new Date(row.created_at).getTime(),
     participants,
     entries,
@@ -52,10 +54,18 @@ export async function getSessions() {
 }
 
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
-export async function createSession({ title, date, durationMin, photo, participantIds }, creatorId, ownExercises) {
+export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds }, creatorId, ownExercises) {
   const { data: session, error } = await supabase
     .from("sessions")
-    .insert({ creator_id: creatorId, title: title || null, date, duration_min: durationMin, photo_url: photo })
+    .insert({
+      creator_id: creatorId,
+      title: title || null,
+      date,
+      duration_min: durationMin,
+      photo_url: photo,
+      feeling: feeling || null,
+      comment: comment?.trim() || null,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -71,10 +81,17 @@ export async function createSession({ title, date, durationMin, photo, participa
   return session.id;
 }
 
-export async function editSession(sessionId, { title, date, durationMin, photo, participantIds, creatorId }) {
+export async function editSession(sessionId, { title, date, durationMin, photo, feeling, comment, participantIds, creatorId }) {
   const { error } = await supabase
     .from("sessions")
-    .update({ title: title || null, date, duration_min: durationMin, photo_url: photo })
+    .update({
+      title: title || null,
+      date,
+      duration_min: durationMin,
+      photo_url: photo,
+      feeling: feeling || null,
+      comment: comment?.trim() || null,
+    })
     .eq("id", sessionId);
   if (error) throw error;
 

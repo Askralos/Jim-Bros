@@ -10,6 +10,16 @@ export const COLORS = {
   blue: "#5B9BD5",
 };
 
+export const SESSION_FEELINGS = [
+  { key: "excellent", label: "Excellent" },
+  { key: "good", label: "Bon" },
+  { key: "normal", label: "Normal" },
+  { key: "difficult", label: "Difficile" },
+  { key: "very_difficult", label: "Très difficile" },
+];
+
+export const feelingLabel = (key) => SESSION_FEELINGS.find((f) => f.key === key)?.label || null;
+
 export const DEFAULT_EXERCISES = [
   "Développé couché", "Squat", "Soulevé de terre", "Tractions", "Développé militaire",
   "Rowing barre", "Curl biceps", "Dips", "Fentes", "Gainage", "Pompes",
