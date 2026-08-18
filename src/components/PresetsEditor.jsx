@@ -1,18 +1,68 @@
 import { useState } from "react";
-import { X, Pencil, Trash2 } from "lucide-react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { ExercisePicker } from "./ExercisePicker";
 
 const emptyPresetExercise = () => ({ name: "", setCount: 3 });
 
+function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
+  return (
+    <div style={styles.friendRow}>
+      <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={onToggle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preset.name}</span>
+          <span style={{ fontSize: 11, color: COLORS.muted, flexShrink: 0 }}>{ownerLabel}</span>
+        </div>
+        <span style={{ fontSize: 11, color: COLORS.muted }}>{preset.exercises.length} exercice{preset.exercises.length > 1 ? "s" : ""}</span>
+
+        {expanded && (
+          <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+            {preset.exercises.length === 0 && <li style={{ fontSize: 12, color: COLORS.muted }}>Vide</li>}
+            {preset.exercises.map((e, i) => (
+              <li key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px" }}>
+                <span>{e.name}</span>
+                <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {expanded && onSelect && (
+          <button
+            style={{ ...styles.primaryBtn, marginTop: 10 }}
+            onClick={(e) => { e.stopPropagation(); onSelect(preset); }}
+          >
+            Utiliser ce preset
+          </button>
+        )}
+      </div>
+
+      <button style={styles.iconBtn} onClick={onToggle} aria-label={expanded ? "Réduire" : "Détails"}>
+        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+      </button>
+
+      {owned && (
+        <div style={{ display: "flex", gap: 2 }}>
+          <button style={styles.iconBtn} onClick={(e) => { e.stopPropagation(); onEdit(preset); }} aria-label="Modifier"><Pencil size={15} /></button>
+          <button style={styles.iconBtn} onClick={(e) => { e.stopPropagation(); onDelete(preset); }} aria-label="Supprimer"><Trash2 size={15} color={COLORS.flame} /></button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Sous-onglet "Presets" de l'onglet Exercices : squelettes de séance réutilisables
 // (liste d'exercices + nombre de séries, sans reps/poids) proposés au bouton "+".
-export function PresetsEditor({ exerciseList, currentUserId, presets, onCreate, onUpdate, onDelete }) {
+// `profiles` sert à afficher le nom du créateur de chaque preset.
+// `onSelect`, si fourni, transforme la liste en sélecteur (utilisé aussi dans la
+// modale "Nouvelle séance > Depuis un preset", même composant que cet onglet).
+export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, presets, onCreate, onUpdate, onDelete, onSelect }) {
   const [editing, setEditing] = useState(null); // null = fermé, "new" = création, sinon id du preset
   const [name, setName] = useState("");
   const [exercises, setExercises] = useState([emptyPresetExercise()]);
   const [pickerFor, setPickerFor] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   const openCreate = () => { setEditing("new"); setName(""); setExercises([emptyPresetExercise()]); };
   const openEdit = (preset) => {
@@ -40,6 +90,9 @@ export function PresetsEditor({ exerciseList, currentUserId, presets, onCreate, 
     if (!confirm(`Supprimer le preset "${preset.name}" ?`)) return;
     await onDelete(preset.id);
   };
+
+  const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
+  const ownerLabel = (preset) => (preset.creatorId === currentUserId ? "Toi" : profiles[preset.creatorId]?.display_name || "?");
 
   if (editing !== null) {
     return (
@@ -87,30 +140,38 @@ export function PresetsEditor({ exerciseList, currentUserId, presets, onCreate, 
     );
   }
 
+  const myPresets = presets.filter((p) => p.creatorId === currentUserId);
+  const otherPresets = presets.filter((p) => p.creatorId !== currentUserId);
+
+  const renderGroup = (label, list) => (
+    <div style={{ marginTop: 14 }}>
+      <h3 style={{ ...styles.sectionTitle, margin: "0 0 8px" }}>{label} ({list.length})</h3>
+      {list.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun preset ici pour l'instant.</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {list.map((p) => (
+          <PresetRow
+            key={p.id}
+            preset={p}
+            ownerLabel={ownerLabel(p)}
+            owned={p.creatorId === currentUserId}
+            expanded={expandedId === p.id}
+            onToggle={() => toggle(p.id)}
+            onEdit={openEdit}
+            onDelete={remove}
+            onSelect={onSelect}
+          />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <h2 style={styles.sectionTitle}>Presets de séance ({presets.length})</h2>
       <button style={styles.secondaryBtn} onClick={openCreate}>+ Créer un preset</button>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-        {presets.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun preset pour l'instant.</p>}
-        {presets.map((p) => {
-          const owned = p.creatorId === currentUserId;
-          return (
-            <div key={p.id} style={styles.friendRow}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, display: "block" }}>{p.name}</span>
-                <span style={{ fontSize: 11, color: COLORS.muted }}>{p.exercises.map((e) => e.name).join(", ") || "Vide"}</span>
-              </div>
-              {owned && (
-                <div style={{ display: "flex", gap: 2 }}>
-                  <button style={styles.iconBtn} onClick={() => openEdit(p)} aria-label="Modifier"><Pencil size={15} /></button>
-                  <button style={styles.iconBtn} onClick={() => remove(p)} aria-label="Supprimer"><Trash2 size={15} color={COLORS.flame} /></button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+
+      {renderGroup("Mes presets", myPresets)}
+      {renderGroup("Presets de mes potes", otherPresets)}
     </div>
   );
 }
