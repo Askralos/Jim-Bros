@@ -79,7 +79,7 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
     if (pErr) throw pErr;
   }
 
-  await writeEntry(session.id, creatorId, ownExercises, photo, bodyweightKg);
+  await writeEntry(session.id, creatorId, ownExercises, bodyweightKg);
   return session.id;
 }
 
@@ -124,12 +124,12 @@ export async function deleteSession(sessionId) {
 // Écrit (ou remplace) les stats d'un participant pour une séance donnée.
 // Repart de zéro sur les exercices/séries à chaque sauvegarde : plus simple et plus
 // fiable qu'un diff, et le volume de données par séance reste minime.
-export async function writeEntry(sessionId, userId, exercises, photo, bodyweightKg) {
+export async function writeEntry(sessionId, userId, exercises, bodyweightKg) {
   const { data: entry, error } = await supabase
     .from("session_entries")
     .upsert(
       {
-        session_id: sessionId, user_id: userId, photo_url: photo, submitted_at: new Date().toISOString(),
+        session_id: sessionId, user_id: userId, submitted_at: new Date().toISOString(),
         bodyweight_kg: bodyweightKg !== "" && bodyweightKg != null ? Number(bodyweightKg) : null,
       },
       { onConflict: "session_id,user_id" }

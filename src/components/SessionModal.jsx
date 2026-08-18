@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { X, Check, Camera, Trash2, ChevronDown } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate } from "../lib/utils";
@@ -8,35 +8,13 @@ import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEdito
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
-function PhotoSlider({ photos }) {
-  const [idx, setIdx] = useState(0);
-  if (!photos.length) return null;
-  const cur = photos[idx % photos.length];
-  const next = photos.length > 1 ? photos[(idx + 1) % photos.length] : null;
+// Une seule photo par séance (la photo de couverture) — modifiable uniquement via
+// "Modifier la séance" pour éviter la confusion avec un ancien système à 2 photos.
+function SessionPhoto({ photo }) {
+  if (!photo) return null;
   return (
-    <div style={{ marginBottom: 10, paddingRight: 20, paddingBottom: 20 }}>
-      <div style={{ position: "relative", aspectRatio: "4/3" }}>
-        {next && (
-          <img
-            src={next.photo} alt=""
-            style={{ position: "absolute", top: 20, left: 20, width: "100%", height: "100%", objectFit: "cover", borderRadius: 10, opacity: 0.9, zIndex: 1, border: `2px solid ${COLORS.bg}` }}
-          />
-        )}
-        <img
-          src={cur.photo} alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 10, objectFit: "cover", zIndex: 2, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}
-        />
-        {photos.length > 1 && (
-          <>
-            <button onClick={() => setIdx((i) => (i - 1 + photos.length) % photos.length)} style={{ ...styles.sliderNavBtn, left: 6, zIndex: 3 }} aria-label="Photo précédente"><ChevronLeft size={16} /></button>
-            <button onClick={() => setIdx((i) => (i + 1) % photos.length)} style={{ ...styles.sliderNavBtn, right: 6, zIndex: 3 }} aria-label="Photo suivante"><ChevronRight size={16} /></button>
-            <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4, zIndex: 3 }}>
-              {photos.map((_, i) => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: i === idx ? COLORS.lime : "rgba(255,255,255,0.5)" }} />)}
-            </div>
-          </>
-        )}
-      </div>
-      {photos.length > 1 && <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 4, textAlign: "center" }}>Photo de {cur.label}</p>}
+    <div style={{ marginBottom: 10 }}>
+      <img src={photo} alt="" style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }} />
     </div>
   );
 }
@@ -60,8 +38,6 @@ export function SessionModal({
   const [formExercises, setFormExercises] = useState(() =>
     myEntry ? myEntry.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) })) : [emptyExercise()]
   );
-  const [formPhoto, setFormPhoto] = useState(myEntry?.photo || null);
-  const [uploadingEntry, setUploadingEntry] = useState(false);
   const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
   const [editMeta, setEditMeta] = useState({
     title: session.title || "", date: session.date, durationMin: session.durationMin || "",
@@ -74,8 +50,6 @@ export function SessionModal({
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
-  const entryFileRef = useRef(null);
-  const entryGalleryRef = useRef(null);
 
   useEffect(() => {
     if (myEntry?.bodyweightKg == null) {
@@ -94,11 +68,6 @@ export function SessionModal({
       const url = await uploadPhoto(file, "sessions");
       setEditMeta((m) => ({ ...m, photo: url }));
     } finally { setUploadingSession(false); }
-  };
-  const handleEntryPhoto = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploadingEntry(true);
-    try { setFormPhoto(await uploadPhoto(file, "entries")); } finally { setUploadingEntry(false); }
   };
   const toggleEditParticipant = (id) => {
     setEditMeta((m) => ({ ...m, participants: m.participants.includes(id) ? m.participants.filter((x) => x !== id) : [...m.participants, id] }));
@@ -122,22 +91,6 @@ export function SessionModal({
             </div>
           </div>
 
-          <div style={styles.photoZone} onClick={() => entryFileRef.current?.click()}>
-            {formPhoto ? (
-              <img src={formPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingEntry ? "Envoi..." : "Prendre ta photo (optionnel)"}</span>
-              </div>
-            )}
-          </div>
-          <input ref={entryFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEntryPhoto} />
-          <input ref={entryGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEntryPhoto} />
-          <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-            <button style={styles.linkBtn} onClick={() => entryGalleryRef.current?.click()}>ou galerie</button>
-            {formPhoto && <button style={styles.linkBtn} onClick={() => setFormPhoto(null)}>Retirer la photo</button>}
-          </div>
-
           <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
           <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
 
@@ -146,9 +99,9 @@ export function SessionModal({
           </div>
           <button
             style={styles.primaryBtn}
-            disabled={!clean.length || uploadingEntry}
+            disabled={!clean.length}
             onClick={() => {
-              onSubmitEntry(clean, formPhoto, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
+              onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
               setMode("view");
             }}
           >
@@ -255,14 +208,6 @@ export function SessionModal({
     );
   }
 
-  const photos = participants
-    .map((id) => {
-      const e = session.entries[id];
-      const photo = e?.photo || (id === session.creator ? session.photo : null);
-      return photo ? { photo, label: profiles[id]?.display_name || "" } : null;
-    })
-    .filter(Boolean);
-
   return (
     <div style={styles.modalBackdrop} onClick={onClose}>
       <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
@@ -270,7 +215,7 @@ export function SessionModal({
           <span style={{ fontWeight: 700 }}>{session.title || "Séance"}</span>
           <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
         </div>
-        <PhotoSlider photos={photos} />
+        <SessionPhoto photo={session.photo} />
         <p style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>
           {fmtDate(session.date)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
           {session.feeling ? ` · ${feelingLabel(session.feeling)}` : ""}

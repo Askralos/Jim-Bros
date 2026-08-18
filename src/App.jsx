@@ -150,7 +150,7 @@ export default function App() {
           session={modalSession} profiles={profiles} currentUserId={userId}
           exerciseList={exercises} otherProfiles={Object.values(profiles).filter((p) => p.id !== modalSession.creator)}
           onClose={() => setModalSessionId(null)}
-          onSubmitEntry={async (ex, photo, bodyweightKg) => { await writeEntry(modalSession.id, userId, ex, photo, bodyweightKg); await refresh(); }}
+          onSubmitEntry={async (ex, bodyweightKg) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg); await refresh(); }}
           onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refresh(); }}
           onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refresh(); }}
           onDeleteSession={async () => { await deleteSession(modalSession.id); setModalSessionId(null); await refresh(); }}

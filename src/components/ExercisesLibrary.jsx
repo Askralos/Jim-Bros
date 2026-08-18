@@ -14,6 +14,7 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef(null);
+  const galleryRef = useRef(null);
 
   const toggleFormTag = (key) => setForm((f) => ({ ...f, tags: f.tags.includes(key) ? f.tags.filter((t) => t !== key) : [...f.tags, key] }));
 
@@ -58,7 +59,9 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
             </div>
           )}
         </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handlePhoto} />
+        <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
+        <button style={{ ...styles.linkBtn, marginTop: -6, marginBottom: 10 }} onClick={() => galleryRef.current?.click()}>ou choisir depuis la galerie</button>
         <input style={styles.input} placeholder="Nom de l'exercice" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         <label style={styles.label}>Groupes musculaires</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, TrendingUp, ChevronRight } from "lucide-react";
+import { Check, TrendingUp, ChevronRight, Pencil } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
 import { COLORS, MEASUREMENT_TYPES } from "../lib/constants";
@@ -14,7 +14,10 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
   const [openMeasurement, setOpenMeasurement] = useState(null); // clé du type ouvert (arm/chest/waist/thigh)
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [weightHistory, setWeightHistory] = useState([]);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(profile.display_name);
   const fileRef = useRef(null);
+  const avatarGalleryRef = useRef(null);
 
   const loadWeightHistory = useCallback(async () => {
     setWeightHistory(await getWeightHistory(currentUserId));
@@ -34,6 +37,12 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
     } finally { setUploadingAvatar(false); }
   };
 
+  const saveName = () => {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== profile.display_name) onSave({ display_name: trimmed });
+    setEditingName(false);
+  };
+
   const saveIdentityPhysique = () => {
     onSave({ objectif: form.objectif, height_cm: form.height_cm ? Number(form.height_cm) : null, body_fat_pct: form.body_fat_pct ? Number(form.body_fat_pct) : null });
   };
@@ -50,9 +59,29 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
           <Avatar profile={profile} size={60} />
         </div>
         <input ref={fileRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={handleAvatar} />
+        <input ref={avatarGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatar} />
         <div style={{ flex: 1 }}>
-          <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{profile.display_name}</p>
-          <button style={styles.linkBtn} onClick={() => fileRef.current?.click()}>{uploadingAvatar ? "Envoi..." : "Changer la photo"}</button>
+          {editingName ? (
+            <input
+              style={{ ...styles.input, marginBottom: 4, padding: "5px 8px", fontSize: 15, fontWeight: 700 }}
+              value={nameValue}
+              autoFocus
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={saveName}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{profile.display_name}</p>
+              <button style={{ ...styles.iconBtn, padding: 2 }} onClick={() => { setNameValue(profile.display_name); setEditingName(true); }} aria-label="Modifier le nom">
+                <Pencil size={13} />
+              </button>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button style={styles.linkBtn} onClick={() => fileRef.current?.click()}>{uploadingAvatar ? "Envoi..." : "Changer la photo"}</button>
+            <button style={styles.linkBtn} onClick={() => avatarGalleryRef.current?.click()}>ou galerie</button>
+          </div>
         </div>
       </div>
       <textarea
