@@ -21,15 +21,19 @@ export const SESSION_FEELINGS = [
 export const feelingLabel = (key) => SESSION_FEELINGS.find((f) => f.key === key)?.label || null;
 
 export const EXERCISE_TAGS = [
-  { key: "dos", label: "Dos" },
-  { key: "biceps", label: "Biceps" },
-  { key: "triceps", label: "Triceps" },
-  { key: "epaules", label: "Épaules" },
-  { key: "pecs", label: "Pecs" },
-  { key: "jambes", label: "Jambes" },
+  { key: "dos", label: "Dos", color: "#5B9BD5" },
+  { key: "biceps", label: "Biceps", color: "#FF6B4A" },
+  { key: "triceps", label: "Triceps", color: "#E0C64A" },
+  { key: "epaules", label: "Épaules", color: "#B58CFF" },
+  { key: "pecs", label: "Pecs", color: "#FF6FA8" },
+  { key: "jambes", label: "Jambes", color: "#4CD9A0" },
 ];
 
 export const tagLabel = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.label || key;
+export const tagColor = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.color || COLORS.muted;
+
+// Seuls ces pseudos peuvent modifier/supprimer un exercice de la bibliothèque partagée.
+export const EXERCISE_ADMIN_USERNAMES = ["ludo", "siweil"];
 
 export const MEASUREMENT_TYPES = [
   { key: "arm", label: "Tour de bras", field: "arm_cm" },

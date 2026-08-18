@@ -123,7 +123,7 @@ export default function App() {
 
         {view === "exercises" && (
           <ExercisesLibrary
-            exerciseList={exercises} currentUserId={userId} onRefresh={refresh} presets={presets}
+            exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} onRefresh={refresh} presets={presets}
             onCreatePreset={async (name, exs) => { await createPreset(name, exs, userId); await refresh(); }}
             onUpdatePreset={async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); }}
             onDeletePreset={async (id) => { await deletePreset(id); await refresh(); }}

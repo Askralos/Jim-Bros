@@ -14,17 +14,17 @@ function PhotoSlider({ photos }) {
   const cur = photos[idx % photos.length];
   const next = photos.length > 1 ? photos[(idx + 1) % photos.length] : null;
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 10, paddingRight: 20, paddingBottom: 20 }}>
       <div style={{ position: "relative", aspectRatio: "4/3" }}>
         {next && (
           <img
             src={next.photo} alt=""
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: 10, transform: "translate(10px, 10px) scale(0.96)", opacity: 0.55, zIndex: 1 }}
+            style={{ position: "absolute", top: 20, left: 20, width: "100%", height: "100%", objectFit: "cover", borderRadius: 10, opacity: 0.9, zIndex: 1, border: `2px solid ${COLORS.bg}` }}
           />
         )}
         <img
           src={cur.photo} alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 10, objectFit: "cover", zIndex: 2, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 10, objectFit: "cover", zIndex: 2, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}
         />
         {photos.length > 1 && (
           <>
