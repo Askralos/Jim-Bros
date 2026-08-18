@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { getAllProfiles, getAllPRs } from "../lib/api/profiles";
 import { getSessions } from "../lib/api/sessions";
 import { getExercises } from "../lib/api/exercises";
+import { getPresets } from "../lib/api/presets";
 
 // Centralise le chargement des données partagées et les tient à jour en live via
 // Supabase Realtime : dès qu'un ami modifie une séance/entrée/PR/exercice, tout le
@@ -15,21 +16,24 @@ export function useAppData(userId) {
   const [sessions, setSessions] = useState([]);
   const [exercises, setExercises] = useState([]);
   const [prs, setPrs] = useState([]);
+  const [presets, setPresets] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [profilesMap, sessionsList, exercisesList, prsList] = await Promise.all([
+      const [profilesMap, sessionsList, exercisesList, prsList, presetsList] = await Promise.all([
         getAllProfiles(),
         getSessions(),
         getExercises(),
         getAllPRs(),
+        getPresets(),
       ]);
       setProfiles(profilesMap);
       setSessions(sessionsList);
       setExercises(exercisesList);
       setPrs(prsList);
+      setPresets(presetsList);
     } finally {
       setLoading(false);
     }
@@ -49,6 +53,8 @@ export function useAppData(userId) {
       .on("postgres_changes", { event: "*", schema: "public", table: "exercises" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "personal_records" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "session_presets" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "preset_exercises" }, refresh)
       .subscribe();
 
     return () => {
@@ -75,5 +81,5 @@ export function useAppData(userId) {
     return map;
   }, [entries]);
 
-  return { profiles, sessions, exercises, prs, entries, entriesBySession, loading, refresh };
+  return { profiles, sessions, exercises, prs, presets, entries, entriesBySession, loading, refresh };
 }

@@ -9,11 +9,33 @@ export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().to
 
 export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-export function volumeOf(exercises) {
+// Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
+// - external : la charge saisie telle quelle
+// - bodyweight : le poids du corps figé sur l'entrée (snapshot au moment de la saisie)
+// - bodyweight_plus : poids du corps + lest ajouté
+// - assisted : poids du corps - assistance de la machine
+export function effectiveSetLoad(set, bodyweightKg) {
+  const bw = Number(bodyweightKg) || 0;
+  const w = Number(set.weight) || 0;
+  switch (set.weightType) {
+    case "bodyweight": return bw;
+    case "bodyweight_plus": return bw + w;
+    case "assisted": return Math.max(0, bw - w);
+    default: return w;
+  }
+}
+
+// bodyweightKg : snapshot du poids figé sur l'entrée (session_entries.bodyweight_kg).
+// Les séries en mode "temps" (mode === "time") ne comptent pas dans le tonnage.
+export function volumeOf(exercises, bodyweightKg) {
   if (!exercises) return 0;
   return exercises.reduce(
     (tot, ex) =>
-      tot + ex.sets.reduce((s, set) => s + (set.bodyweight ? 0 : (Number(set.reps) || 0) * (Number(set.weight) || 0)), 0),
+      tot +
+      ex.sets.reduce((s, set) => {
+        if (set.mode === "time") return s;
+        return s + (Number(set.reps) || 0) * effectiveSetLoad(set, bodyweightKg);
+      }, 0),
     0
   );
 }
@@ -53,7 +75,7 @@ export function computeProfileInsights(userId, entries, sessions) {
   const byExo = {};
   [...myEntries].sort((a, b) => (a.session.date > b.session.date ? 1 : -1)).forEach((e) => {
     e.exercises.forEach((ex) => {
-      const best = Math.max(0, ...ex.sets.filter((s) => !s.bodyweight).map((s) => Number(s.weight) || 0));
+      const best = Math.max(0, ...ex.sets.filter((s) => s.weightType === "external").map((s) => Number(s.weight) || 0));
       if (!best) return;
       if (!byExo[ex.name]) byExo[ex.name] = { first: best, best };
       else if (best > byExo[ex.name].best) byExo[ex.name].best = best;

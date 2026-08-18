@@ -26,7 +26,8 @@ export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSe
 
   const { thisWeek, lastWeek } = useMemo(() => {
     const now = new Date();
-    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
+    const mondayOffset = (now.getDay() + 6) % 7; // lundi=0 ... dimanche=6
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - mondayOffset);
     const startOfWeekKey = todayKey(startOfWeek);
     const startOfPrevWeek = new Date(startOfWeek); startOfPrevWeek.setDate(startOfWeek.getDate() - 7);
     const startOfPrevWeekKey = todayKey(startOfPrevWeek);
@@ -96,7 +97,7 @@ function SessionList({ sessions, profiles, onOpenSession }) {
 
 export function SessionFeedCard({ session, profiles, onClick }) {
   const participants = session.participants;
-  const submittedVolume = Object.values(session.entries).reduce((t, e) => t + volumeOf(e.exercises), 0);
+  const submittedVolume = Object.values(session.entries).reduce((t, e) => t + volumeOf(e.exercises, e.bodyweightKg), 0);
   return (
     <div style={styles.feedCard} onClick={onClick}>
       {session.photo ? (

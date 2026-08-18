@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, TrendingUp } from "lucide-react";
+import { Check, TrendingUp, ChevronRight } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
-import { COLORS } from "../lib/constants";
+import { COLORS, MEASUREMENT_TYPES } from "../lib/constants";
 import { fmtDate, todayKey, computeProfileInsights } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { uploadPhoto } from "../lib/api/storage";
-import { addWeightEntry, getWeightHistory } from "../lib/api/profiles";
+import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
 
 export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, exerciseList, onSave, onAddPr, onDeletePr, onOpenSession, onRefresh }) {
   const [form, setForm] = useState(profile);
-  const [editingMeasurements, setEditingMeasurements] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState(false);
+  const [openMeasurement, setOpenMeasurement] = useState(null); // clé du type ouvert (arm/chest/waist/thigh)
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [weightHistory, setWeightHistory] = useState([]);
   const fileRef = useRef(null);
@@ -38,17 +38,9 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
     onSave({ objectif: form.objectif, height_cm: form.height_cm ? Number(form.height_cm) : null, body_fat_pct: form.body_fat_pct ? Number(form.body_fat_pct) : null });
   };
 
-  const saveMeasurements = () => {
-    onSave({
-      arm_cm: form.arm_cm ? Number(form.arm_cm) : null, chest_cm: form.chest_cm ? Number(form.chest_cm) : null,
-      waist_cm: form.waist_cm ? Number(form.waist_cm) : null, thigh_cm: form.thigh_cm ? Number(form.thigh_cm) : null,
-    });
-    setEditingMeasurements(false);
-  };
-
-  const hasMeasurements = profile.arm_cm || profile.chest_cm || profile.waist_cm || profile.thigh_cm;
   const startWeight = weightHistory.length ? weightHistory[0].weight_kg : null;
   const currentWeight = weightHistory.length ? weightHistory[weightHistory.length - 1].weight_kg : profile.weight_kg;
+  const activeMeasurement = MEASUREMENT_TYPES.find((m) => m.key === openMeasurement);
 
   return (
     <div style={styles.screen}>
@@ -57,7 +49,7 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
         <div onClick={() => fileRef.current?.click()} style={{ cursor: "pointer" }}>
           <Avatar profile={profile} size={60} />
         </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatar} />
+        <input ref={fileRef} type="file" accept="image/*" capture="user" style={{ display: "none" }} onChange={handleAvatar} />
         <div style={{ flex: 1 }}>
           <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{profile.display_name}</p>
           <button style={styles.linkBtn} onClick={() => fileRef.current?.click()}>{uploadingAvatar ? "Envoi..." : "Changer la photo"}</button>
@@ -86,36 +78,17 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
           <TrendingUp size={16} color={COLORS.lime} />
         </div>
 
-        {!hasMeasurements && !editingMeasurements && (
-          <button style={{ ...styles.secondaryBtn, marginTop: 10 }} onClick={() => setEditingMeasurements(true)}>+ Ajouter mes mesures</button>
-        )}
-        {hasMeasurements && !editingMeasurements && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 6 }}>
-              {profile.arm_cm && <span style={styles.setChip}>Bras {profile.arm_cm}cm</span>}
-              {profile.chest_cm && <span style={styles.setChip}>Poitrine {profile.chest_cm}cm</span>}
-              {profile.waist_cm && <span style={styles.setChip}>Taille {profile.waist_cm}cm</span>}
-              {profile.thigh_cm && <span style={styles.setChip}>Cuisse {profile.thigh_cm}cm</span>}
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {MEASUREMENT_TYPES.map((m) => (
+            <div key={m.key} onClick={() => setOpenMeasurement(m.key)} style={styles.weightRow}>
+              <div>
+                <div style={{ fontSize: 11, color: COLORS.muted }}>{m.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{profile[m.field] ? `${profile[m.field]} cm` : "Ajouter"}</div>
+              </div>
+              <ChevronRight size={15} color={COLORS.muted} />
             </div>
-            <button style={styles.linkBtn} onClick={() => setEditingMeasurements(true)}>Modifier mes mesures</button>
-          </div>
-        )}
-        {editingMeasurements && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-              <FieldNum label="Tour de bras (cm)" value={form.arm_cm} onChange={(v) => setForm({ ...form, arm_cm: v })} />
-              <FieldNum label="Tour de poitrine" value={form.chest_cm} onChange={(v) => setForm({ ...form, chest_cm: v })} />
-            </div>
-            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-              <FieldNum label="Tour de taille" value={form.waist_cm} onChange={(v) => setForm({ ...form, waist_cm: v })} />
-              <FieldNum label="Tour de cuisse" value={form.thigh_cm} onChange={(v) => setForm({ ...form, thigh_cm: v })} />
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={() => setEditingMeasurements(false)}>Annuler</button>
-              <button style={{ ...styles.primaryBtn, flex: 1 }} onClick={saveMeasurements}>Enregistrer</button>
-            </div>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       <h2 style={styles.sectionTitle}>Progression</h2>
@@ -142,6 +115,16 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
           weightHistory={weightHistory}
           onClose={() => setShowWeightModal(false)}
           onAdd={async (w, date) => { await addWeightEntry(currentUserId, w, date); await loadWeightHistory(); await onRefresh(); }}
+        />
+      )}
+
+      {activeMeasurement && (
+        <MeasurementModal
+          key={activeMeasurement.key}
+          type={activeMeasurement}
+          currentUserId={currentUserId}
+          onClose={() => setOpenMeasurement(null)}
+          onSaved={onRefresh}
         />
       )}
     </div>
@@ -187,6 +170,69 @@ function WeightModal({ weightHistory, onClose, onAdd }) {
             {[...weightHistory].reverse().slice(0, 8).map((h) => (
               <div key={h.logged_on} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.muted }}>
                 <span>{fmtDate(h.logged_on)}</span><span style={{ color: COLORS.chalk }}>{h.weight_kg} kg</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Même principe que WeightModal, généralisé aux 4 mesures corporelles (bras/poitrine/
+// taille/cuisse) désormais suivies dans le temps comme le poids.
+function MeasurementModal({ type, currentUserId, onClose, onSaved }) {
+  const [history, setHistory] = useState([]);
+  const [value, setValue] = useState("");
+  const [date, setDate] = useState(todayKey());
+
+  const load = useCallback(async () => { setHistory(await getMeasurementHistory(currentUserId, type.key)); }, [currentUserId, type.key]);
+  useEffect(() => { load(); }, [load]);
+
+  const chartData = history.map((h) => ({ date: h.logged_on.slice(5), value: h.value_cm }));
+
+  const submit = async () => {
+    if (!value) return;
+    await addMeasurementEntry(currentUserId, type.key, Number(value), date);
+    setValue("");
+    await load();
+    await onSaved();
+  };
+
+  return (
+    <div style={styles.modalBackdrop} onClick={onClose}>
+      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontWeight: 700 }}>{type.label}</span>
+          <button style={styles.iconBtn} onClick={onClose}>✕</button>
+        </div>
+        {chartData.length > 1 ? (
+          <div style={{ width: "100%", height: 160, marginBottom: 16 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis hide domain={["dataMin - 2", "dataMax + 2"]} />
+                <Tooltip contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="value" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p style={{ color: COLORS.muted, fontSize: 13, marginBottom: 14 }}>Ajoute au moins deux mesures pour voir le graphique.</p>
+        )}
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="number" placeholder="Valeur (cm)" value={value} onChange={(e) => setValue(e.target.value)} />
+          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <button style={styles.primaryBtn} disabled={!value} onClick={submit}>
+          <Check size={16} style={{ marginRight: 6 }} />Ajouter cette mesure
+        </button>
+        {history.length > 0 && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+            {[...history].reverse().slice(0, 8).map((h) => (
+              <div key={h.logged_on} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.muted }}>
+                <span>{fmtDate(h.logged_on)}</span><span style={{ color: COLORS.chalk }}>{h.value_cm} cm</span>
               </div>
             ))}
           </div>

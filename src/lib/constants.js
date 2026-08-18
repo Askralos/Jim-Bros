@@ -20,6 +20,31 @@ export const SESSION_FEELINGS = [
 
 export const feelingLabel = (key) => SESSION_FEELINGS.find((f) => f.key === key)?.label || null;
 
+export const EXERCISE_TAGS = [
+  { key: "dos", label: "Dos" },
+  { key: "biceps", label: "Biceps" },
+  { key: "triceps", label: "Triceps" },
+  { key: "epaules", label: "Épaules" },
+  { key: "pecs", label: "Pecs" },
+  { key: "jambes", label: "Jambes" },
+];
+
+export const tagLabel = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.label || key;
+
+export const MEASUREMENT_TYPES = [
+  { key: "arm", label: "Tour de bras", field: "arm_cm" },
+  { key: "chest", label: "Tour de poitrine", field: "chest_cm" },
+  { key: "waist", label: "Tour de taille", field: "waist_cm" },
+  { key: "thigh", label: "Tour de cuisse", field: "thigh_cm" },
+];
+
+export const WEIGHT_TYPES = [
+  { key: "external", label: "Charge externe" },
+  { key: "bodyweight", label: "Poids du corps" },
+  { key: "bodyweight_plus", label: "Poids du corps + lest" },
+  { key: "assisted", label: "Assisté" },
+];
+
 export const DEFAULT_EXERCISES = [
   "Développé couché", "Squat", "Soulevé de terre", "Tractions", "Développé militaire",
   "Rowing barre", "Curl biceps", "Dips", "Fentes", "Gainage", "Pompes",

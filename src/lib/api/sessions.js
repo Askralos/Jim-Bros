@@ -4,10 +4,10 @@ const SESSION_SELECT = `
   id, creator_id, title, date, duration_min, photo_url, feeling, comment, created_at,
   session_participants ( user_id ),
   session_entries (
-    id, user_id, photo_url, submitted_at,
+    id, user_id, photo_url, submitted_at, bodyweight_kg,
     entry_exercises (
       id, exercise_name, position,
-      entry_sets ( reps, weight_kg, bodyweight, position )
+      entry_sets ( reps, weight_kg, weight_type, mode, seconds, position )
     )
   )
 `;
@@ -24,9 +24,11 @@ function shapeSession(row) {
         name: ex.exercise_name,
         sets: [...ex.entry_sets]
           .sort((a, b) => a.position - b.position)
-          .map((s) => ({ reps: s.reps, weight: s.weight_kg, bodyweight: s.bodyweight })),
+          .map((s) => ({ reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds })),
       }));
-    entries[e.user_id] = { entryId: e.id, exercises, photo: e.photo_url, submittedAt: e.submitted_at };
+    entries[e.user_id] = {
+      entryId: e.id, exercises, photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
+    };
   });
   return {
     id: row.id,
@@ -54,7 +56,7 @@ export async function getSessions() {
 }
 
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
-export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds }, creatorId, ownExercises) {
+export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, bodyweightKg }, creatorId, ownExercises) {
   const { data: session, error } = await supabase
     .from("sessions")
     .insert({
@@ -77,7 +79,7 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
     if (pErr) throw pErr;
   }
 
-  await writeEntry(session.id, creatorId, ownExercises, photo);
+  await writeEntry(session.id, creatorId, ownExercises, photo, bodyweightKg);
   return session.id;
 }
 
@@ -122,11 +124,14 @@ export async function deleteSession(sessionId) {
 // Écrit (ou remplace) les stats d'un participant pour une séance donnée.
 // Repart de zéro sur les exercices/séries à chaque sauvegarde : plus simple et plus
 // fiable qu'un diff, et le volume de données par séance reste minime.
-export async function writeEntry(sessionId, userId, exercises, photo) {
+export async function writeEntry(sessionId, userId, exercises, photo, bodyweightKg) {
   const { data: entry, error } = await supabase
     .from("session_entries")
     .upsert(
-      { session_id: sessionId, user_id: userId, photo_url: photo, submitted_at: new Date().toISOString() },
+      {
+        session_id: sessionId, user_id: userId, photo_url: photo, submitted_at: new Date().toISOString(),
+        bodyweight_kg: bodyweightKg !== "" && bodyweightKg != null ? Number(bodyweightKg) : null,
+      },
       { onConflict: "session_id,user_id" }
     )
     .select()
@@ -144,13 +149,20 @@ export async function writeEntry(sessionId, userId, exercises, photo) {
       .single();
     if (exErr) throw exErr;
 
-    const sets = ex.sets.map((s, j) => ({
-      entry_exercise_id: exRow.id,
-      reps: Number(s.reps) || 0,
-      weight_kg: s.bodyweight ? null : s.weight !== "" && s.weight != null ? Number(s.weight) : null,
-      bodyweight: !!s.bodyweight,
-      position: j,
-    }));
+    const sets = ex.sets.map((s, j) => {
+      const weightType = s.weightType || "external";
+      const mode = s.mode === "time" ? "time" : "reps";
+      return {
+        entry_exercise_id: exRow.id,
+        reps: mode === "time" ? 0 : Number(s.reps) || 0,
+        seconds: mode === "time" ? Number(s.seconds) || 0 : null,
+        mode,
+        weight_type: weightType,
+        weight_kg: weightType === "bodyweight" ? null : (s.weight !== "" && s.weight != null ? Number(s.weight) : null),
+        bodyweight: weightType === "bodyweight",
+        position: j,
+      };
+    });
     if (sets.length) {
       const { error: setErr } = await supabase.from("entry_sets").insert(sets);
       if (setErr) throw setErr;

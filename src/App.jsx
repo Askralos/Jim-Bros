@@ -5,10 +5,11 @@ import { COLORS } from "./lib/constants";
 import { getSession, onAuthStateChange } from "./lib/api/auth";
 import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
 import { createSession, editSession, deleteSession, writeEntry, deleteEntry } from "./lib/api/sessions";
+import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
 import { useAppData } from "./hooks/useAppData";
 
 import { AuthScreen } from "./components/AuthScreen";
-import { TopBar, BottomNav } from "./components/Nav";
+import { TopBar, BottomNav, NewSessionChooser } from "./components/Nav";
 import { Home } from "./components/Home";
 import { CalendarView } from "./components/CalendarView";
 import { NewSession } from "./components/NewSession";
@@ -18,11 +19,19 @@ import { Friends } from "./components/Friends";
 import { ExercisesLibrary } from "./components/ExercisesLibrary";
 import { Leaderboard } from "./components/Leaderboard";
 
+const presetToExercises = (preset) =>
+  preset.exercises.map((ex) => ({
+    name: ex.name,
+    sets: Array.from({ length: ex.setCount }, () => ({ reps: "", weight: "", weightType: "external", mode: "reps", seconds: "" })),
+  }));
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [authSession, setAuthSession] = useState(null);
   const [view, setView] = useState("home");
   const [modalSessionId, setModalSessionId] = useState(null);
+  const [showNewSessionChooser, setShowNewSessionChooser] = useState(false);
+  const [newSessionExercises, setNewSessionExercises] = useState(null);
 
   useEffect(() => {
     getSession().then((s) => { setAuthSession(s); setBooting(false); });
@@ -31,7 +40,7 @@ export default function App() {
   }, []);
 
   const userId = authSession?.user?.id || null;
-  const { profiles, sessions, exercises, prs, entries, entriesBySession, loading, refresh } = useAppData(userId);
+  const { profiles, sessions, exercises, prs, presets, entries, entriesBySession, loading, refresh } = useAppData(userId);
 
   const prsByUser = useMemo(() => {
     const map = {};
@@ -73,7 +82,7 @@ export default function App() {
           <Home
             currentUserId={userId} profiles={profiles} sessions={sessions}
             onOpenSession={setModalSessionId}
-            onNewSession={() => setView("log")}
+            onNewSession={() => setShowNewSessionChooser(true)}
             onSeeCalendar={() => setView("calendar")}
           />
         )}
@@ -85,12 +94,14 @@ export default function App() {
         {view === "log" && (
           <NewSession
             currentUserId={userId} otherProfiles={otherProfiles} exerciseList={exercises}
+            initialExercises={newSessionExercises}
             onSubmit={async (payload, ownExercises) => {
               await createSession(payload, userId, ownExercises);
               await refresh();
+              setNewSessionExercises(null);
               setView("home");
             }}
-            onCancel={() => setView("home")}
+            onCancel={() => { setNewSessionExercises(null); setView("home"); }}
           />
         )}
 
@@ -111,21 +122,35 @@ export default function App() {
         )}
 
         {view === "exercises" && (
-          <ExercisesLibrary exerciseList={exercises} currentUserId={userId} onRefresh={refresh} />
+          <ExercisesLibrary
+            exerciseList={exercises} currentUserId={userId} onRefresh={refresh} presets={presets}
+            onCreatePreset={async (name, exs) => { await createPreset(name, exs, userId); await refresh(); }}
+            onUpdatePreset={async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); }}
+            onDeletePreset={async (id) => { await deletePreset(id); await refresh(); }}
+          />
         )}
 
         {view === "leaderboard" && (
           <Leaderboard profiles={profiles} entries={entries} sessions={sessions} currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser} />
         )}
       </div>
-      <BottomNav view={view} setView={setView} />
+      <BottomNav view={view} setView={setView} onNewSession={() => setShowNewSessionChooser(true)} />
+
+      {showNewSessionChooser && (
+        <NewSessionChooser
+          presets={presets}
+          onBlank={() => { setNewSessionExercises(null); setShowNewSessionChooser(false); setView("log"); }}
+          onPreset={(preset) => { setNewSessionExercises(presetToExercises(preset)); setShowNewSessionChooser(false); setView("log"); }}
+          onClose={() => setShowNewSessionChooser(false)}
+        />
+      )}
 
       {modalSession && (
         <SessionModal
           session={modalSession} profiles={profiles} currentUserId={userId}
           exerciseList={exercises} otherProfiles={Object.values(profiles).filter((p) => p.id !== modalSession.creator)}
           onClose={() => setModalSessionId(null)}
-          onSubmitEntry={async (ex, photo) => { await writeEntry(modalSession.id, userId, ex, photo); await refresh(); }}
+          onSubmitEntry={async (ex, photo, bodyweightKg) => { await writeEntry(modalSession.id, userId, ex, photo, bodyweightKg); await refresh(); }}
           onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refresh(); }}
           onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refresh(); }}
           onDeleteSession={async () => { await deleteSession(modalSession.id); setModalSessionId(null); await refresh(); }}

@@ -1,25 +1,36 @@
-import { useState, useRef } from "react";
-import { X, Check, Camera, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Check, Camera, Trash2, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate } from "../lib/utils";
 import { Avatar } from "./Avatar";
-import { ExercisesEditor, cleanExercises } from "./ExercisesEditor";
+import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { uploadPhoto } from "../lib/api/storage";
+import { getLatestWeight } from "../lib/api/profiles";
 
 function PhotoSlider({ photos }) {
   const [idx, setIdx] = useState(0);
   if (!photos.length) return null;
-  const cur = photos[Math.min(idx, photos.length - 1)];
+  const cur = photos[idx % photos.length];
+  const next = photos.length > 1 ? photos[(idx + 1) % photos.length] : null;
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ position: "relative" }}>
-        <img src={cur.photo} alt="" style={{ width: "100%", borderRadius: 10, display: "block", aspectRatio: "4/3", objectFit: "cover" }} />
+      <div style={{ position: "relative", aspectRatio: "4/3" }}>
+        {next && (
+          <img
+            src={next.photo} alt=""
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: 10, transform: "translate(10px, 10px) scale(0.96)", opacity: 0.55, zIndex: 1 }}
+          />
+        )}
+        <img
+          src={cur.photo} alt=""
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 10, objectFit: "cover", zIndex: 2, boxShadow: "0 4px 14px rgba(0,0,0,0.35)" }}
+        />
         {photos.length > 1 && (
           <>
-            <button onClick={() => setIdx((i) => (i - 1 + photos.length) % photos.length)} style={{ ...styles.sliderNavBtn, left: 6 }} aria-label="Photo précédente"><ChevronLeft size={16} /></button>
-            <button onClick={() => setIdx((i) => (i + 1) % photos.length)} style={{ ...styles.sliderNavBtn, right: 6 }} aria-label="Photo suivante"><ChevronRight size={16} /></button>
-            <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4 }}>
+            <button onClick={() => setIdx((i) => (i - 1 + photos.length) % photos.length)} style={{ ...styles.sliderNavBtn, left: 6, zIndex: 3 }} aria-label="Photo précédente"><ChevronLeft size={16} /></button>
+            <button onClick={() => setIdx((i) => (i + 1) % photos.length)} style={{ ...styles.sliderNavBtn, right: 6, zIndex: 3 }} aria-label="Photo suivante"><ChevronRight size={16} /></button>
+            <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4, zIndex: 3 }}>
               {photos.map((_, i) => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: i === idx ? COLORS.lime : "rgba(255,255,255,0.5)" }} />)}
             </div>
           </>
@@ -30,6 +41,16 @@ function PhotoSlider({ photos }) {
   );
 }
 
+function SetChip({ s }) {
+  if (s.mode === "time") return <span style={styles.setChip}>{s.seconds}s</span>;
+  const suffix =
+    s.weightType === "bodyweight" ? " PDC" :
+    s.weightType === "bodyweight_plus" ? ` PDC+${s.weight}kg` :
+    s.weightType === "assisted" ? ` PDC-${s.weight}kg` :
+    `×${s.weight}kg`;
+  return <span style={styles.setChip}>{s.reps}{suffix}</span>;
+}
+
 export function SessionModal({
   session, profiles, currentUserId, exerciseList, otherProfiles,
   onClose, onSubmitEntry, onDeleteEntry, onEditSession, onDeleteSession,
@@ -37,10 +58,11 @@ export function SessionModal({
   const [mode, setMode] = useState("view");
   const myEntry = session.entries[currentUserId];
   const [formExercises, setFormExercises] = useState(() =>
-    myEntry ? myEntry.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) })) : [{ name: "", sets: [{ reps: "", weight: "", bodyweight: false }] }]
+    myEntry ? myEntry.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) })) : [emptyExercise()]
   );
   const [formPhoto, setFormPhoto] = useState(myEntry?.photo || null);
   const [uploadingEntry, setUploadingEntry] = useState(false);
+  const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
   const [editMeta, setEditMeta] = useState({
     title: session.title || "", date: session.date, durationMin: session.durationMin || "",
     photo: session.photo || null,
@@ -49,8 +71,18 @@ export function SessionModal({
     participants: session.participants.filter((u) => u !== session.creator),
   });
   const [uploadingSession, setUploadingSession] = useState(false);
+  const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
   const editFileRef = useRef(null);
+  const editGalleryRef = useRef(null);
   const entryFileRef = useRef(null);
+  const entryGalleryRef = useRef(null);
+
+  useEffect(() => {
+    if (myEntry?.bodyweightKg == null) {
+      getLatestWeight(currentUserId).then((w) => { if (w != null) setFormBodyweightKg(w); }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const participants = session.participants;
   const isCreator = currentUserId === session.creator;
@@ -71,6 +103,7 @@ export function SessionModal({
   const toggleEditParticipant = (id) => {
     setEditMeta((m) => ({ ...m, participants: m.participants.includes(id) ? m.participants.filter((x) => x !== id) : [...m.participants, id] }));
   };
+  const toggleExpanded = (id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   if (mode === "fillEntry" || mode === "editEntry") {
     const clean = cleanExercises(formExercises);
@@ -94,17 +127,31 @@ export function SessionModal({
               <img src={formPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingEntry ? "Envoi..." : "Ta photo (optionnel)"}</span>
+                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingEntry ? "Envoi..." : "Prendre ta photo (optionnel)"}</span>
               </div>
             )}
           </div>
-          <input ref={entryFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEntryPhoto} />
-          {formPhoto && <button style={styles.linkBtn} onClick={() => setFormPhoto(null)}>Retirer la photo</button>}
+          <input ref={entryFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEntryPhoto} />
+          <input ref={entryGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEntryPhoto} />
+          <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+            <button style={styles.linkBtn} onClick={() => entryGalleryRef.current?.click()}>ou galerie</button>
+            {formPhoto && <button style={styles.linkBtn} onClick={() => setFormPhoto(null)}>Retirer la photo</button>}
+          </div>
 
-          <div style={{ marginTop: 10 }}>
+          <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
+          <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
+
+          <div style={{ marginTop: 4 }}>
             <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
           </div>
-          <button style={styles.primaryBtn} disabled={!clean.length || uploadingEntry} onClick={() => { onSubmitEntry(clean, formPhoto); setMode("view"); }}>
+          <button
+            style={styles.primaryBtn}
+            disabled={!clean.length || uploadingEntry}
+            onClick={() => {
+              onSubmitEntry(clean, formPhoto, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
+              setMode("view");
+            }}
+          >
             <Check size={16} style={{ marginRight: 6 }} />Enregistrer
           </button>
         </div>
@@ -131,12 +178,16 @@ export function SessionModal({
               <img src={editMeta.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingSession ? "Envoi..." : "Photo (optionnel)"}</span>
+                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingSession ? "Envoi..." : "Prendre une photo (optionnel)"}</span>
               </div>
             )}
           </div>
-          <input ref={editFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEditPhoto} />
-          {editMeta.photo && <button style={styles.linkBtn} onClick={() => setEditMeta((m) => ({ ...m, photo: null }))}>Retirer la photo</button>}
+          <input ref={editFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEditPhoto} />
+          <input ref={editGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEditPhoto} />
+          <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+            <button style={styles.linkBtn} onClick={() => editGalleryRef.current?.click()}>ou galerie</button>
+            {editMeta.photo && <button style={styles.linkBtn} onClick={() => setEditMeta((m) => ({ ...m, photo: null }))}>Retirer la photo</button>}
+          </div>
 
           <input style={styles.input} placeholder="Titre" value={editMeta.title} onChange={(e) => setEditMeta({ ...editMeta, title: e.target.value })} />
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -234,29 +285,35 @@ export function SessionModal({
           const entry = session.entries[id];
           const mine = id === currentUserId;
           const solo = participants.length === 1;
+          const isOpen = solo || expanded.has(id);
           return (
             <div key={id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${COLORS.line}` }}>
               {!solo && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }} onClick={() => toggleExpanded(id)}>
                   <Avatar profile={profiles[id]} size={26} />
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{profiles[id]?.display_name || "?"}</span>
                   {entry ? <span style={{ fontSize: 11, color: COLORS.lime }}>Fait</span> : <span style={{ fontSize: 11, color: COLORS.muted }}>En attente</span>}
+                  <ChevronDown size={14} color={COLORS.muted} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
                 </div>
               )}
-              {entry ? (
-                entry.exercises.map((ex, i) => (
-                  <div key={i} style={{ marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
-                      {ex.sets.map((s, j) => <span key={j} style={styles.setChip}>{s.reps}{s.bodyweight ? " reps" : `×${s.weight}kg`}</span>)}
-                    </div>
-                  </div>
-                ))
-              ) : mine ? (
-                <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
-              ) : null}
-              {mine && entry && (
-                <button style={{ ...styles.linkBtn, marginTop: 6 }} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
+              {isOpen && (
+                <>
+                  {entry ? (
+                    entry.exercises.map((ex, i) => (
+                      <div key={i} style={{ marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
+                          {ex.sets.map((s, j) => <SetChip key={j} s={s} />)}
+                        </div>
+                      </div>
+                    ))
+                  ) : mine ? (
+                    <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
+                  ) : null}
+                  {mine && entry && (
+                    <button style={{ ...styles.linkBtn, marginTop: 6 }} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
+                  )}
+                </>
               )}
             </div>
           );

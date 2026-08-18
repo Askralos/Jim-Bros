@@ -7,7 +7,7 @@ import { Avatar } from "./Avatar";
 import { MetricCard } from "./ProfileScreen";
 
 export function Friends({ currentUserId, profiles, entries, sessions, prsByUser, onOpenSession }) {
-  const others = Object.values(profiles).filter((p) => p.id !== currentUserId);
+  const others = Object.values(profiles);
 
   const together = (id) => sessions.filter((s) => s.entries?.[currentUserId] && s.entries?.[id]).length;
   const countFor = (id) => sessions.filter((s) => s.entries?.[id]).length;
@@ -49,12 +49,12 @@ export function Friends({ currentUserId, profiles, entries, sessions, prsByUser,
         <button style={styles.iconBtn} onClick={() => setAsc((a) => !a)} aria-label="Inverser l'ordre">{asc ? "↑" : "↓"}</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {sorted.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Vous êtes seul pour l'instant, invite tes potes à créer un compte.</p>}
+        {sorted.length <= 1 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Vous êtes seul pour l'instant, invite tes potes à créer un compte.</p>}
         {sorted.map(({ p, count, lastDate, tog }) => (
           <div key={p.id} style={{ ...styles.friendRow, cursor: "pointer" }} onClick={() => setOpenFriend(p.id)}>
             <Avatar profile={p} size={38} />
             <div style={{ flex: 1 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>{p.display_name}</span>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{p.display_name}{p.id === currentUserId ? " (toi)" : ""}</span>
               <div style={{ fontSize: 11, color: COLORS.muted }}>
                 {count} séances · {tog} avec toi{lastDate ? ` · dernière ${fmtDate(lastDate)}` : ""}
               </div>

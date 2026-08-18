@@ -1,11 +1,11 @@
 import { COLORS } from "./constants";
 
 export const styles = {
-  app: { display: "flex", flexDirection: "column", height: "100vh", background: COLORS.bg, color: COLORS.chalk, fontFamily: "system-ui, -apple-system, sans-serif" },
-  bootScreen: { height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg },
+  app: { display: "flex", flexDirection: "column", height: "100dvh", background: COLORS.bg, color: COLORS.chalk, fontFamily: "system-ui, -apple-system, sans-serif" },
+  bootScreen: { height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg },
   topBar: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: `1px solid ${COLORS.line}`, background: COLORS.surface },
-  content: { flex: 1, overflowY: "auto" },
-  screen: { padding: "16px 16px 90px", maxWidth: 480, margin: "0 auto" },
+  content: { flex: 1, overflowY: "auto", paddingBottom: "calc(64px + env(safe-area-inset-bottom))" },
+  screen: { padding: "16px 16px 24px", maxWidth: 480, margin: "0 auto" },
   loadingBar: { height: 2, background: COLORS.lime, opacity: 0.6 },
   sectionTitle: { fontSize: 13, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: COLORS.muted, margin: "18px 0 10px" },
 
@@ -51,7 +51,11 @@ export const styles = {
   tabPillActive: { background: COLORS.lime, color: "#111214", border: `1px solid ${COLORS.lime}`, fontWeight: 700 },
   rankRow: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: COLORS.surface, border: `1px solid ${COLORS.line}`, borderRadius: 10 },
 
-  bottomNav: { display: "flex", alignItems: "center", justifyContent: "space-around", padding: "8px 10px 10px", background: COLORS.surface, borderTop: `1px solid ${COLORS.line}` },
+  bottomNav: {
+    position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40,
+    display: "flex", alignItems: "center", justifyContent: "space-around",
+    padding: "8px 10px calc(10px + env(safe-area-inset-bottom))", background: COLORS.surface, borderTop: `1px solid ${COLORS.line}`,
+  },
   navBtn: { display: "flex", flexDirection: "column", alignItems: "center", background: "none", border: "none", cursor: "pointer" },
   centerNavBtn: { width: 46, height: 46, borderRadius: "50%", background: COLORS.lime, border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginTop: -18, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" },
 };
