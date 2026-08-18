@@ -51,6 +51,10 @@ export default function App() {
   const otherProfiles = useMemo(() => Object.values(profiles).filter((p) => p.id !== userId), [profiles, userId]);
   const modalSession = modalSessionId ? sessions.find((s) => s.id === modalSessionId) : null;
 
+  const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refresh(); };
+  const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); };
+  const handleDeletePreset = async (id) => { await deletePreset(id); await refresh(); };
+
   if (booting) {
     return (
       <div style={styles.bootScreen}>
@@ -123,10 +127,10 @@ export default function App() {
 
         {view === "exercises" && (
           <ExercisesLibrary
-            exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} onRefresh={refresh} presets={presets}
-            onCreatePreset={async (name, exs) => { await createPreset(name, exs, userId); await refresh(); }}
-            onUpdatePreset={async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); }}
-            onDeletePreset={async (id) => { await deletePreset(id); await refresh(); }}
+            exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
+            onCreatePreset={handleCreatePreset}
+            onUpdatePreset={handleUpdatePreset}
+            onDeletePreset={handleDeletePreset}
           />
         )}
 
@@ -138,7 +142,10 @@ export default function App() {
 
       {showNewSessionChooser && (
         <NewSessionChooser
-          presets={presets}
+          presets={presets} exerciseList={exercises} currentUserId={userId} profiles={profiles}
+          onCreatePreset={handleCreatePreset}
+          onUpdatePreset={handleUpdatePreset}
+          onDeletePreset={handleDeletePreset}
           onBlank={() => { setNewSessionExercises(null); setShowNewSessionChooser(false); setView("log"); }}
           onPreset={(preset) => { setNewSessionExercises(presetToExercises(preset)); setShowNewSessionChooser(false); setView("log"); }}
           onClose={() => setShowNewSessionChooser(false)}

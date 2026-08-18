@@ -79,7 +79,7 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   );
 }
 
-export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset }) {
+export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset }) {
   const [tab, setTab] = useState("library");
   const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
   const [formTarget, setFormTarget] = useState(null); // "new" = création, sinon l'exercice édité, null = fermé
@@ -101,7 +101,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
 
       {tab === "presets" ? (
         <PresetsEditor
-          exerciseList={exerciseList} currentUserId={currentUserId} presets={presets}
+          exerciseList={exerciseList} currentUserId={currentUserId} profiles={profiles} presets={presets}
           onCreate={onCreatePreset} onUpdate={onUpdatePreset} onDelete={onDeletePreset}
         />
       ) : (
