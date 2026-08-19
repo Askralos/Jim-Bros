@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronDown } from "lucide-react";
+import { X, Check, Camera, Trash2, ChevronDown, Loader2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate } from "../lib/utils";
@@ -48,6 +48,8 @@ export function SessionModal({
   });
   const [uploadingSession, setUploadingSession] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
+  const [submittingEntry, setSubmittingEntry] = useState(false);
+  const [submittingSession, setSubmittingSession] = useState(false);
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
 
@@ -99,13 +101,23 @@ export function SessionModal({
           </div>
           <button
             style={styles.primaryBtn}
-            disabled={!clean.length}
-            onClick={() => {
-              onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
-              setMode("view");
+            disabled={!clean.length || submittingEntry}
+            onClick={async () => {
+              if (submittingEntry) return;
+              setSubmittingEntry(true);
+              try {
+                await onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
+                setMode("view");
+              } finally {
+                setSubmittingEntry(false);
+              }
             }}
           >
-            <Check size={16} style={{ marginRight: 6 }} />Enregistrer
+            {submittingEntry ? (
+              <><Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />Enregistrement...</>
+            ) : (
+              <><Check size={16} style={{ marginRight: 6 }} />Enregistrer</>
+            )}
           </button>
         </div>
       </div>
@@ -188,20 +200,30 @@ export function SessionModal({
 
           <button
             style={styles.primaryBtn}
-            disabled={uploadingSession}
-            onClick={() => {
-              onEditSession({
-                title: editMeta.title.trim(), date: editMeta.date,
-                durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
-                photo: editMeta.photo,
-                feeling: editMeta.feeling,
-                comment: editMeta.comment.trim() || null,
-                participantIds: editMeta.participants, creatorId: session.creator,
-              });
-              setMode("view");
+            disabled={uploadingSession || submittingSession}
+            onClick={async () => {
+              if (submittingSession) return;
+              setSubmittingSession(true);
+              try {
+                await onEditSession({
+                  title: editMeta.title.trim(), date: editMeta.date,
+                  durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
+                  photo: editMeta.photo,
+                  feeling: editMeta.feeling,
+                  comment: editMeta.comment.trim() || null,
+                  participantIds: editMeta.participants, creatorId: session.creator,
+                });
+                setMode("view");
+              } finally {
+                setSubmittingSession(false);
+              }
             }}
           >
-            <Check size={16} style={{ marginRight: 6 }} />Enregistrer
+            {submittingSession ? (
+              <><Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />Enregistrement...</>
+            ) : (
+              <><Check size={16} style={{ marginRight: 6 }} />Enregistrer</>
+            )}
           </button>
         </div>
       </div>

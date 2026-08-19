@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Camera, Check } from "lucide-react";
+import { Camera, Check, Loader2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS } from "../lib/constants";
 import { todayKey } from "../lib/utils";
@@ -19,6 +19,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
   const [exercises, setExercises] = useState(() => (initialExercises?.length ? initialExercises : [emptyExercise()]));
   const [bodyweightKg, setBodyweightKg] = useState("");
   const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef(null);
   const galleryRef = useRef(null);
 
@@ -35,22 +36,27 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
   const clean = cleanExercises(exercises);
   const valid = clean.length > 0 && !!title.trim() && !!photo && !uploading;
 
-  const submit = () => {
+  const submit = async () => {
     setTouched(true);
-    if (!valid) return;
-    onSubmit(
-      {
-        date,
-        title: title.trim(),
-        durationMin: durationMin ? Number(durationMin) : null,
-        photo,
-        feeling,
-        comment: comment.trim() || null,
-        participantIds: participants,
-        bodyweightKg: bodyweightKg !== "" ? Number(bodyweightKg) : null,
-      },
-      clean
-    );
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(
+        {
+          date,
+          title: title.trim(),
+          durationMin: durationMin ? Number(durationMin) : null,
+          photo,
+          feeling,
+          comment: comment.trim() || null,
+          participantIds: participants,
+          bodyweightKg: bodyweightKg !== "" ? Number(bodyweightKg) : null,
+        },
+        clean
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -119,8 +125,19 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
       <ExercisesEditor exercises={exercises} onChange={setExercises} exerciseList={exerciseList} />
 
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-        <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onCancel}>Annuler</button>
-        <button style={{ ...styles.primaryBtn, flex: 1 }} onClick={submit}><Check size={16} style={{ marginRight: 6 }} />Publier</button>
+        <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onCancel} disabled={submitting}>Annuler</button>
+        <button style={{ ...styles.primaryBtn, flex: 1 }} onClick={submit} disabled={submitting}>
+          {submitting ? (
+            <>
+              <Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />
+              Publication...
+            </>
+          ) : (
+            <>
+              <Check size={16} style={{ marginRight: 6 }} />Publier
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
