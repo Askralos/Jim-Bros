@@ -85,11 +85,34 @@ export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSe
   );
 }
 
+// Regroupe les séances consécutives d'un même jour (la liste arrive déjà triée
+// par date desc) pour aérer le feed et afficher combien de séances par jour.
+function groupByDay(sessions) {
+  const groups = [];
+  sessions.forEach((s) => {
+    const last = groups[groups.length - 1];
+    if (last && last.date === s.date) last.sessions.push(s);
+    else groups.push({ date: s.date, sessions: [s] });
+  });
+  return groups;
+}
+
 function SessionList({ sessions, profiles, onOpenSession }) {
+  const groups = groupByDay(sessions);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {sessions.map((s) => (
-        <SessionFeedCard key={s.id} session={s} profiles={profiles} onClick={() => onOpenSession(s.id)} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+      {groups.map((g) => (
+        <div key={g.date}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.chalk, textTransform: "capitalize" }}>{fmtDate(g.date)}</span>
+            <span style={{ fontSize: 11, color: COLORS.muted }}>{g.sessions.length} séance{g.sessions.length > 1 ? "s" : ""}</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {g.sessions.map((s) => (
+              <SessionFeedCard key={s.id} session={s} profiles={profiles} onClick={() => onOpenSession(s.id)} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   );
