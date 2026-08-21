@@ -1,13 +1,10 @@
-import { useState, useRef, useLayoutEffect } from "react";
-import { X, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
+import { useState } from "react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
-import { uid } from "../lib/utils";
 import { ExercisePicker } from "./ExercisePicker";
 
-// id purement local à l'éditeur (jamais persisté) pour garder une identité stable
-// par carte pendant le glisser-déposer, indépendante de sa position.
-const emptyPresetExercise = () => ({ id: uid(), name: "", setCount: 3 });
+const emptyPresetExercise = () => ({ name: "", setCount: 3 });
 
 function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
   return (
@@ -66,17 +63,12 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const [exercises, setExercises] = useState([emptyPresetExercise()]);
   const [pickerFor, setPickerFor] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  const [dragId, setDragId] = useState(null);
-  const [dragOffsetY, setDragOffsetY] = useState(0);
-  const dragStartY = useRef(0);
-  const rowRefs = useRef({}); // id -> DOM node, pour mesurer les positions (animation FLIP)
-  const prevRectsRef = useRef(null); // rects juste avant un échange, à comparer après re-render
 
   const openCreate = () => { setEditing("new"); setName(""); setExercises([emptyPresetExercise()]); };
   const openEdit = (preset) => {
     setEditing(preset.id);
     setName(preset.name);
-    setExercises(preset.exercises.length ? preset.exercises.map((e) => ({ ...e, id: uid() })) : [emptyPresetExercise()]);
+    setExercises(preset.exercises.length ? preset.exercises.map((e) => ({ ...e })) : [emptyPresetExercise()]);
   };
   const close = () => setEditing(null);
 
@@ -84,72 +76,14 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const removeExAt = (i) => setExercises((xs) => xs.filter((_, idx) => idx !== i));
   const addEx = () => setExercises((xs) => [...xs, emptyPresetExercise()]);
 
-  // Réordonne les exercices en glissant une carte (poignée) sur une autre : on
-  // évite ainsi de devoir supprimer puis recréer les exercices suivants juste
-  // pour corriger l'ordre. La carte glissée suit le doigt/la souris ; les
-  // cartes déplacées glissent visuellement vers leur nouvelle position (FLIP).
-  const startDrag = (id, e) => {
-    dragStartY.current = e.clientY;
-    setDragId(id);
-    setDragOffsetY(0);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onDragMove = (e) => {
-    if (dragId === null) return;
-    setDragOffsetY(e.clientY - dragStartY.current);
-
-    // On masque temporairement la carte glissée aux hit-tests : sinon, comme
-    // elle suit le curseur et passe au-dessus des autres, elementFromPoint ne
-    // renvoie jamais que cette carte-là et l'échange ne se déclenche jamais.
-    const draggedNode = rowRefs.current[dragId];
-    const prevPointerEvents = draggedNode?.style.pointerEvents;
-    if (draggedNode) draggedNode.style.pointerEvents = "none";
-    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-ex-row]");
-    if (draggedNode) draggedNode.style.pointerEvents = prevPointerEvents || "";
-
-    if (!el) return;
-    const targetId = el.dataset.exRow;
-    if (targetId !== dragId) {
-      const rects = {};
-      Object.entries(rowRefs.current).forEach(([id, node]) => { if (node) rects[id] = node.getBoundingClientRect(); });
-      prevRectsRef.current = rects;
-
-      setExercises((xs) => {
-        const fromIdx = xs.findIndex((x) => x.id === dragId);
-        const toIdx = xs.findIndex((x) => x.id === targetId);
-        if (fromIdx === -1 || toIdx === -1) return xs;
-        const arr = [...xs];
-        const [item] = arr.splice(fromIdx, 1);
-        arr.splice(toIdx, 0, item);
-        return arr;
-      });
-      dragStartY.current = e.clientY;
-      setDragOffsetY(0);
-    }
-  };
-  const endDrag = () => { setDragId(null); setDragOffsetY(0); };
-
-  // Après un échange, anime les cartes déplacées de leur ancienne position
-  // vers la nouvelle (la carte glissée, elle, suit déjà le pointeur).
-  useLayoutEffect(() => {
-    const prevRects = prevRectsRef.current;
-    if (!prevRects) return;
-    prevRectsRef.current = null;
-    Object.entries(rowRefs.current).forEach(([id, node]) => {
-      if (!node || id === dragId) return;
-      const prevRect = prevRects[id];
-      if (!prevRect) return;
-      const deltaY = prevRect.top - node.getBoundingClientRect().top;
-      if (!deltaY) return;
-      node.style.transition = "none";
-      node.style.transform = `translateY(${deltaY}px)`;
-      requestAnimationFrame(() => {
-        node.style.transition = "transform 180ms ease";
-        node.style.transform = "";
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercises]);
+  // Réordonne les exercices sans avoir à les supprimer/recréer.
+  const moveExAt = (i, dir) => setExercises((xs) => {
+    const j = i + dir;
+    if (j < 0 || j >= xs.length) return xs;
+    const arr = [...xs];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return arr;
+  });
 
   const valid = !!name.trim() && exercises.some((e) => e.name);
 
@@ -179,17 +113,7 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
         <input style={styles.input} placeholder="Nom du preset (ex: Push day)" value={name} onChange={(e) => setName(e.target.value)} />
 
         {exercises.map((ex, i) => (
-          <div
-            key={ex.id}
-            data-ex-row={ex.id}
-            ref={(el) => { if (el) rowRefs.current[ex.id] = el; else delete rowRefs.current[ex.id]; }}
-            style={{
-              ...styles.exCard,
-              ...(dragId === ex.id
-                ? { position: "relative", zIndex: 2, boxShadow: "0 6px 16px rgba(0,0,0,0.4)", transform: `translateY(${dragOffsetY}px)` }
-                : {}),
-            }}
-          >
+          <div key={i} style={styles.exCard}>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               {ex.name ? (
                 <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
@@ -199,16 +123,14 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
               {ex.name && <button style={styles.linkBtn} onClick={() => setPickerFor(i)}>Changer</button>}
               {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExAt(i)}><X size={15} /></button>}
               {exercises.length > 1 && (
-                <button
-                  style={{ ...styles.iconBtn, padding: "4px 2px", cursor: dragId === ex.id ? "grabbing" : "grab", touchAction: "none" }}
-                  onPointerDown={(e) => startDrag(ex.id, e)}
-                  onPointerMove={onDragMove}
-                  onPointerUp={endDrag}
-                  onPointerCancel={endDrag}
-                  aria-label="Réordonner"
-                >
-                  <GripVertical size={16} color={COLORS.muted} />
-                </button>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === 0} onClick={() => moveExAt(i, -1)} aria-label="Monter">
+                    <ChevronUp size={15} color={i === 0 ? COLORS.line : COLORS.muted} />
+                  </button>
+                  <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === exercises.length - 1} onClick={() => moveExAt(i, 1)} aria-label="Descendre">
+                    <ChevronDown size={15} color={i === exercises.length - 1 ? COLORS.line : COLORS.muted} />
+                  </button>
+                </div>
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
