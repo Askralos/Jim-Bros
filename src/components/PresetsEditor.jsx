@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef } from "react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp, GripVertical } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { ExercisePicker } from "./ExercisePicker";
@@ -63,6 +63,9 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const [exercises, setExercises] = useState([emptyPresetExercise()]);
   const [pickerFor, setPickerFor] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const dragStartY = useRef(0);
 
   const openCreate = () => { setEditing("new"); setName(""); setExercises([emptyPresetExercise()]); };
   const openEdit = (preset) => {
@@ -75,6 +78,35 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const updateExAt = (i, patch) => setExercises((xs) => xs.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   const removeExAt = (i) => setExercises((xs) => xs.filter((_, idx) => idx !== i));
   const addEx = () => setExercises((xs) => [...xs, emptyPresetExercise()]);
+
+  // Réordonne les exercices en glissant une carte (poignée) sur une autre : on
+  // évite ainsi de devoir supprimer puis recréer les exercices suivants juste
+  // pour corriger l'ordre.
+  const startDrag = (i, e) => {
+    dragStartY.current = e.clientY;
+    setDragIndex(i);
+    setDragOffsetY(0);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onDragMove = (e) => {
+    if (dragIndex === null) return;
+    setDragOffsetY(e.clientY - dragStartY.current);
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-ex-row]");
+    if (!el) return;
+    const target = Number(el.dataset.exRow);
+    if (target !== dragIndex) {
+      setExercises((xs) => {
+        const arr = [...xs];
+        const [item] = arr.splice(dragIndex, 1);
+        arr.splice(target, 0, item);
+        return arr;
+      });
+      setDragIndex(target);
+      dragStartY.current = e.clientY;
+      setDragOffsetY(0);
+    }
+  };
+  const endDrag = () => { setDragIndex(null); setDragOffsetY(0); };
 
   const valid = !!name.trim() && exercises.some((e) => e.name);
 
@@ -104,8 +136,29 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
         <input style={styles.input} placeholder="Nom du preset (ex: Push day)" value={name} onChange={(e) => setName(e.target.value)} />
 
         {exercises.map((ex, i) => (
-          <div key={i} style={styles.exCard}>
+          <div
+            key={i}
+            data-ex-row={i}
+            style={{
+              ...styles.exCard,
+              ...(dragIndex === i
+                ? { position: "relative", zIndex: 2, boxShadow: "0 6px 16px rgba(0,0,0,0.4)", transform: `translateY(${dragOffsetY}px)` }
+                : {}),
+            }}
+          >
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              {exercises.length > 1 && (
+                <button
+                  style={{ ...styles.iconBtn, padding: "4px 2px", cursor: dragIndex === i ? "grabbing" : "grab", touchAction: "none" }}
+                  onPointerDown={(e) => startDrag(i, e)}
+                  onPointerMove={onDragMove}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
+                  aria-label="Réordonner"
+                >
+                  <GripVertical size={16} color={COLORS.muted} />
+                </button>
+              )}
               {ex.name ? (
                 <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
               ) : (
