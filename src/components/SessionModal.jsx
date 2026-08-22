@@ -39,11 +39,11 @@ export function SessionModal({
     myEntry ? myEntry.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) })) : [emptyExercise()]
   );
   const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
+  const [formFeeling, setFormFeeling] = useState(myEntry?.feeling || null);
+  const [formComment, setFormComment] = useState(myEntry?.comment || "");
   const [editMeta, setEditMeta] = useState({
     title: session.title || "", date: session.date, durationMin: session.durationMin || "",
     photo: session.photo || null,
-    feeling: session.feeling || null,
-    comment: session.comment || "",
     participants: session.participants.filter((u) => u !== session.creator),
   });
   const [uploadingSession, setUploadingSession] = useState(false);
@@ -99,6 +99,29 @@ export function SessionModal({
           <div style={{ marginTop: 4 }}>
             <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
           </div>
+
+          <label style={{ ...styles.label, marginTop: 4 }}>Ton feeling (optionnel)</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+            {SESSION_FEELINGS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFormFeeling((cur) => (cur === f.key ? null : f.key))}
+                style={{ ...styles.tabPill, ...(formFeeling === f.key ? styles.tabPillActive : {}) }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <label style={styles.label}>Ton commentaire (optionnel)</label>
+          <textarea
+            style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
+            placeholder="Comment as-tu vécu la séance ?"
+            value={formComment}
+            onChange={(e) => setFormComment(e.target.value)}
+          />
+
           <button
             style={styles.primaryBtn}
             disabled={!clean.length || submittingEntry}
@@ -106,7 +129,7 @@ export function SessionModal({
               if (submittingEntry) return;
               setSubmittingEntry(true);
               try {
-                await onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null);
+                await onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null, formFeeling, formComment);
                 setMode("view");
               } finally {
                 setSubmittingEntry(false);
@@ -160,28 +183,6 @@ export function SessionModal({
             <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} placeholder="Durée (min)" type="number" value={editMeta.durationMin} onChange={(e) => setEditMeta({ ...editMeta, durationMin: e.target.value })} />
           </div>
 
-          <label style={styles.label}>Feeling de la séance (optionnel)</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {SESSION_FEELINGS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setEditMeta((m) => ({ ...m, feeling: m.feeling === f.key ? null : f.key }))}
-                style={{ ...styles.tabPill, ...(editMeta.feeling === f.key ? styles.tabPillActive : {}) }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <label style={styles.label}>Commentaire (optionnel)</label>
-          <textarea
-            style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
-            placeholder="Comment s'est passée la séance ?"
-            value={editMeta.comment}
-            onChange={(e) => setEditMeta({ ...editMeta, comment: e.target.value })}
-          />
-
           {otherProfiles.length > 0 && (
             <>
               <label style={styles.label}>Fait avec</label>
@@ -209,8 +210,6 @@ export function SessionModal({
                   title: editMeta.title.trim(), date: editMeta.date,
                   durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
                   photo: editMeta.photo,
-                  feeling: editMeta.feeling,
-                  comment: editMeta.comment.trim() || null,
                   participantIds: editMeta.participants, creatorId: session.creator,
                 });
                 setMode("view");
@@ -240,13 +239,7 @@ export function SessionModal({
         <SessionPhoto photo={session.photo} />
         <p style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>
           {fmtDate(session.date)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
-          {session.feeling ? ` · ${feelingLabel(session.feeling)}` : ""}
         </p>
-        {session.comment && (
-          <p style={{ fontSize: 13, color: COLORS.chalk, marginBottom: 12, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>
-            {session.comment}
-          </p>
-        )}
 
         {participants.map((id) => {
           const entry = session.entries[id];
@@ -266,14 +259,24 @@ export function SessionModal({
               {isOpen && (
                 <>
                   {entry ? (
-                    entry.exercises.map((ex, i) => (
-                      <div key={i} style={{ marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
-                          {ex.sets.map((s, j) => <SetChip key={j} s={s} />)}
+                    <>
+                      {entry.exercises.map((ex, i) => (
+                        <div key={i} style={{ marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
+                            {ex.sets.map((s, j) => <SetChip key={j} s={s} />)}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      ))}
+                      {entry.feeling && (
+                        <p style={{ fontSize: 12, color: COLORS.lime, marginTop: 6, marginBottom: 0 }}>{feelingLabel(entry.feeling)}</p>
+                      )}
+                      {entry.comment && (
+                        <p style={{ fontSize: 13, color: COLORS.chalk, marginTop: 4, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
+                          {entry.comment}
+                        </p>
+                      )}
+                    </>
                   ) : mine ? (
                     <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
                   ) : null}

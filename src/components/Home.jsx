@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Camera, ChevronRight, Dumbbell } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS, feelingLabel } from "../lib/constants";
+import { COLORS } from "../lib/constants";
 import { todayKey, fmtDate, volumeOf } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
@@ -137,7 +137,6 @@ export function SessionFeedCard({ session, profiles, onClick }) {
         <span style={{ fontSize: 12, color: COLORS.muted }}>
           {Object.keys(session.entries).length}/{participants.length} ont posté leurs stats · {submittedVolume.toLocaleString("fr-FR")} kg
           {session.durationMin ? ` · ${session.durationMin} min` : ""}
-          {session.feeling ? ` · ${feelingLabel(session.feeling)}` : ""}
         </span>
       </div>
     </div>

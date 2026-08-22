@@ -1,10 +1,10 @@
 import { supabase } from "../supabaseClient";
 
 const SESSION_SELECT = `
-  id, creator_id, title, date, duration_min, photo_url, feeling, comment, created_at,
+  id, creator_id, title, date, duration_min, photo_url, created_at,
   session_participants ( user_id ),
   session_entries (
-    id, user_id, photo_url, submitted_at, bodyweight_kg,
+    id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
     entry_exercises (
       id, exercise_name, position,
       entry_sets ( reps, weight_kg, weight_type, mode, seconds, position )
@@ -28,6 +28,7 @@ function shapeSession(row) {
       }));
     entries[e.user_id] = {
       entryId: e.id, exercises, photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
+      feeling: e.feeling || null, comment: e.comment || null,
     };
   });
   return {
@@ -37,8 +38,6 @@ function shapeSession(row) {
     date: row.date,
     durationMin: row.duration_min,
     photo: row.photo_url,
-    feeling: row.feeling || null,
-    comment: row.comment || null,
     createdAt: new Date(row.created_at).getTime(),
     participants,
     entries,
@@ -56,6 +55,8 @@ export async function getSessions() {
 }
 
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
+// Le feeling/commentaire est propre au créateur (sa propre entrée), comme pour
+// chaque autre participant.
 export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, bodyweightKg }, creatorId, ownExercises) {
   const { data: session, error } = await supabase
     .from("sessions")
@@ -65,8 +66,6 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
       date,
       duration_min: durationMin,
       photo_url: photo,
-      feeling: feeling || null,
-      comment: comment?.trim() || null,
     })
     .select()
     .single();
@@ -79,11 +78,11 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
     if (pErr) throw pErr;
   }
 
-  await writeEntry(session.id, creatorId, ownExercises, bodyweightKg);
+  await writeEntry(session.id, creatorId, ownExercises, bodyweightKg, feeling, comment);
   return session.id;
 }
 
-export async function editSession(sessionId, { title, date, durationMin, photo, feeling, comment, participantIds, creatorId }) {
+export async function editSession(sessionId, { title, date, durationMin, photo, participantIds, creatorId }) {
   const { error } = await supabase
     .from("sessions")
     .update({
@@ -91,8 +90,6 @@ export async function editSession(sessionId, { title, date, durationMin, photo, 
       date,
       duration_min: durationMin,
       photo_url: photo,
-      feeling: feeling || null,
-      comment: comment?.trim() || null,
     })
     .eq("id", sessionId);
   if (error) throw error;
@@ -121,16 +118,20 @@ export async function deleteSession(sessionId) {
   if (error) throw error; // ON DELETE CASCADE nettoie participants/entrées/exercices/séries
 }
 
-// Écrit (ou remplace) les stats d'un participant pour une séance donnée.
+// Écrit (ou remplace) les stats d'un participant pour une séance donnée, y compris
+// son propre feeling/commentaire (chacun le sien, contrairement au titre/photo qui
+// restent partagés au niveau de la séance).
 // Repart de zéro sur les exercices/séries à chaque sauvegarde : plus simple et plus
 // fiable qu'un diff, et le volume de données par séance reste minime.
-export async function writeEntry(sessionId, userId, exercises, bodyweightKg) {
+export async function writeEntry(sessionId, userId, exercises, bodyweightKg, feeling, comment) {
   const { data: entry, error } = await supabase
     .from("session_entries")
     .upsert(
       {
         session_id: sessionId, user_id: userId, submitted_at: new Date().toISOString(),
         bodyweight_kg: bodyweightKg !== "" && bodyweightKg != null ? Number(bodyweightKg) : null,
+        feeling: feeling || null,
+        comment: comment?.trim() || null,
       },
       { onConflict: "session_id,user_id" }
     )

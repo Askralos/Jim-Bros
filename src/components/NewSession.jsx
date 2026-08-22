@@ -86,7 +86,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
       <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
       <input style={styles.input} type="number" placeholder="Poids du jour" value={bodyweightKg} onChange={(e) => setBodyweightKg(e.target.value)} />
 
-      <label style={styles.label}>Feeling de la séance (optionnel)</label>
+      <label style={styles.label}>Ton feeling (optionnel)</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
         {SESSION_FEELINGS.map((f) => (
           <button
@@ -100,10 +100,10 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
         ))}
       </div>
 
-      <label style={styles.label}>Commentaire (optionnel)</label>
+      <label style={styles.label}>Ton commentaire (optionnel)</label>
       <textarea
         style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
-        placeholder="Comment s'est passée la séance ?"
+        placeholder="Comment as-tu vécu la séance ?"
         value={comment}
         onChange={(e) => setComment(e.target.value)}
       />
