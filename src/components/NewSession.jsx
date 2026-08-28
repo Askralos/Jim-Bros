@@ -31,7 +31,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, initial
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
     setUploading(true);
-    try { setPhoto(await uploadPhoto(file, "sessions")); } finally { setUploading(false); }
+    try { setPhoto(await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 })); } finally { setUploading(false); }
   };
   const clean = cleanExercises(exercises);
   const valid = clean.length > 0 && !!title.trim() && !!photo && !uploading;

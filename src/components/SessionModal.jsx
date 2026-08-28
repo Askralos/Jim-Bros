@@ -67,7 +67,7 @@ export function SessionModal({
     const file = e.target.files?.[0]; if (!file) return;
     setUploadingSession(true);
     try {
-      const url = await uploadPhoto(file, "sessions");
+      const url = await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 });
       setEditMeta((m) => ({ ...m, photo: url }));
     } finally { setUploadingSession(false); }
   };
