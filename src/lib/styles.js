@@ -28,10 +28,7 @@ export const styles = {
   ctaBanner: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: COLORS.surface2, border: `1px dashed ${COLORS.line}`, borderRadius: 10, color: COLORS.lime, fontSize: 13, cursor: "pointer", marginBottom: 6 },
 
   feedCard: { display: "flex", gap: 12, padding: 10, background: COLORS.surface, border: `1px solid ${COLORS.line}`, borderRadius: 12, cursor: "pointer" },
-  // Même ratio 4/3 que la photo affichée en grand dans la fiche séance : la miniature
-  // du feed montre alors le même cadrage (pas de recadrage carré supplémentaire qui
-  // cache une partie de la photo), juste en plus petit.
-  feedPhoto: { width: 96, height: 72, borderRadius: 9, objectFit: "cover", background: COLORS.surface2, flexShrink: 0 },
+  feedPhoto: { width: 56, height: 56, borderRadius: 9, objectFit: "cover", background: COLORS.surface2, flexShrink: 0 },
 
   modalBackdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 },
   modalCard: { width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto", background: COLORS.surface, borderRadius: "16px 16px 0 0", padding: 18, color: COLORS.chalk },

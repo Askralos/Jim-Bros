@@ -10,11 +10,14 @@ import { getLatestWeight } from "../lib/api/profiles";
 
 // Une seule photo par séance (la photo de couverture) — modifiable uniquement via
 // "Modifier la séance" pour éviter la confusion avec un ancien système à 2 photos.
+// object-fit: contain (plutôt que cover en 4/3 fixe) : chacun cadre sa photo comme
+// il veut, on affiche donc la photo entière plutôt que d'en cacher des morceaux
+// avec un recadrage forcé.
 function SessionPhoto({ photo }) {
   if (!photo) return null;
   return (
-    <div style={{ marginBottom: 10 }}>
-      <img src={photo} alt="" style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }} />
+    <div style={{ marginBottom: 10, background: COLORS.surface2, borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
+      <img src={photo} alt="" style={{ display: "block", width: "100%", maxHeight: "55vh", objectFit: "contain", borderRadius: 10 }} />
     </div>
   );
 }
