@@ -6,6 +6,7 @@ import { getSession, onAuthStateChange } from "./lib/api/auth";
 import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
 import { createSession, editSession, deleteSession, writeEntry, deleteEntry } from "./lib/api/sessions";
 import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
+import { presetToExercises } from "./lib/utils";
 import { useAppData } from "./hooks/useAppData";
 
 import { AuthScreen } from "./components/AuthScreen";
@@ -18,12 +19,6 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { Friends } from "./components/Friends";
 import { ExercisesLibrary } from "./components/ExercisesLibrary";
 import { Leaderboard } from "./components/Leaderboard";
-
-const presetToExercises = (preset) =>
-  preset.exercises.map((ex) => ({
-    name: ex.name,
-    sets: Array.from({ length: ex.setCount }, () => ({ reps: "", weight: "", weightType: "external", mode: "reps", seconds: "" })),
-  }));
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -156,6 +151,10 @@ export default function App() {
         <SessionModal
           session={modalSession} profiles={profiles} currentUserId={userId}
           exerciseList={exercises} otherProfiles={Object.values(profiles).filter((p) => p.id !== modalSession.creator)}
+          presets={presets}
+          onCreatePreset={handleCreatePreset}
+          onUpdatePreset={handleUpdatePreset}
+          onDeletePreset={handleDeletePreset}
           onClose={() => setModalSessionId(null)}
           onSubmitEntry={async (ex, bodyweightKg, feeling, comment) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment); await refresh(); }}
           onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refresh(); }}

@@ -9,6 +9,16 @@ export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().to
 
 export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+// Convertit les exercices d'un preset (juste un nom + nombre de series) en exercices
+// prets pour ExercisesEditor (series vides a remplir). Sert aussi bien a demarrer
+// une seance depuis un preset qu'a laisser un participant remplir ses propres
+// stats a partir d'un preset.
+export const presetToExercises = (preset) =>
+  preset.exercises.map((ex) => ({
+    name: ex.name,
+    sets: Array.from({ length: ex.setCount }, () => ({ reps: "", weight: "", weightType: "external", mode: "reps", seconds: "" })),
+  }));
+
 // Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
 // - external : la charge saisie telle quelle
 // - bodyweight : le poids du corps figé sur l'entrée (snapshot au moment de la saisie)

@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, Camera, Trash2, ChevronDown, Loader2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate } from "../lib/utils";
+import { fmtDate, presetToExercises } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
+import { PresetsEditor } from "./PresetsEditor";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
@@ -34,6 +35,7 @@ function SetChip({ s }) {
 
 export function SessionModal({
   session, profiles, currentUserId, exerciseList, otherProfiles,
+  presets, onCreatePreset, onUpdatePreset, onDeletePreset,
   onClose, onSubmitEntry, onDeleteEntry, onEditSession, onDeleteSession,
 }) {
   const [mode, setMode] = useState("view");
@@ -53,6 +55,7 @@ export function SessionModal({
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
   const [submittingEntry, setSubmittingEntry] = useState(false);
   const [submittingSession, setSubmittingSession] = useState(false);
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
 
@@ -78,6 +81,11 @@ export function SessionModal({
     setEditMeta((m) => ({ ...m, participants: m.participants.includes(id) ? m.participants.filter((x) => x !== id) : [...m.participants, id] }));
   };
   const toggleExpanded = (id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const applyPreset = (preset) => {
+    if (cleanExercises(formExercises).length > 0 && !confirm("Remplacer tes exercices actuels par ceux du preset ?")) return;
+    setFormExercises(presetToExercises(preset));
+    setShowPresetPicker(false);
+  };
 
   if (mode === "fillEntry" || mode === "editEntry") {
     const clean = cleanExercises(formExercises);
@@ -98,6 +106,10 @@ export function SessionModal({
 
           <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
           <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
+
+          {presets.length > 0 && (
+            <button style={styles.secondaryBtn} onClick={() => setShowPresetPicker(true)}>Depuis un preset</button>
+          )}
 
           <div style={{ marginTop: 4 }}>
             <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
@@ -146,6 +158,27 @@ export function SessionModal({
             )}
           </button>
         </div>
+
+        {showPresetPicker && (
+          <div style={styles.modalBackdrop} onClick={(e) => { e.stopPropagation(); setShowPresetPicker(false); }}>
+            <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ fontWeight: 700 }}>Choisir un preset</span>
+                <button style={styles.iconBtn} onClick={() => setShowPresetPicker(false)}><X size={16} /></button>
+              </div>
+              <PresetsEditor
+                exerciseList={exerciseList}
+                currentUserId={currentUserId}
+                profiles={profiles}
+                presets={presets}
+                onCreate={onCreatePreset}
+                onUpdate={onUpdatePreset}
+                onDelete={onDeletePreset}
+                onSelect={applyPreset}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
