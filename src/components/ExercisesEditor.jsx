@@ -131,26 +131,27 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
                       <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealRest, key)}>+ Temps de repos</button>
                     )}
 
-                    {mode === "reps" && (
-                      showTarget ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <Target size={12} color={COLORS.muted} />
-                          <input
-                            style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
-                            placeholder="Min" type="number" value={s.targetMin}
-                            onChange={(e) => updateSet(i, j, "targetMin", e.target.value)}
-                          />
-                          <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
-                          <input
-                            style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
-                            placeholder="Max" type="number" value={s.targetMax}
-                            onChange={(e) => updateSet(i, j, "targetMax", e.target.value)}
-                          />
-                          <button style={styles.iconBtn} onClick={() => clearTarget(i, j, key)}><X size={12} /></button>
-                        </div>
-                      ) : (
-                        <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, key)}>+ Objectif de reps</button>
-                      )
+                    {showTarget ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Target size={12} color={COLORS.muted} />
+                        <input
+                          style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                          placeholder="Min" type="number" value={s.targetMin}
+                          onChange={(e) => updateSet(i, j, "targetMin", e.target.value)}
+                        />
+                        <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
+                        <input
+                          style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                          placeholder="Max" type="number" value={s.targetMax}
+                          onChange={(e) => updateSet(i, j, "targetMax", e.target.value)}
+                        />
+                        <span style={{ fontSize: 10, color: COLORS.muted }}>{mode === "time" ? "sec" : "reps"}</span>
+                        <button style={styles.iconBtn} onClick={() => clearTarget(i, j, key)}><X size={12} /></button>
+                      </div>
+                    ) : (
+                      <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, key)}>
+                        + Objectif de {mode === "time" ? "temps" : "reps"}
+                      </button>
                     )}
                   </div>
                 </div>

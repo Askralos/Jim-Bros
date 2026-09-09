@@ -23,44 +23,44 @@ function SessionPhoto({ photo }) {
   );
 }
 
-// Code couleur par rapport à l'objectif de reps (si renseigné) : en dessous de la
-// fourchette = rouge, dedans = vert, au-dessus = jaune.
-function targetTint(reps, min, max) {
-  const r = Number(reps);
-  if (r < min) return "rgba(255,107,74,0.28)";
-  if (r > max) return "rgba(224,198,74,0.3)";
+// Code couleur par rapport à l'objectif (reps ou secondes selon le mode, si renseigné) :
+// en dessous de la fourchette = rouge, dedans = vert, au-dessus = jaune.
+function targetTint(value, min, max) {
+  const v = Number(value);
+  if (v < min) return "rgba(255,107,74,0.28)";
+  if (v > max) return "rgba(224,198,74,0.3)";
   return "rgba(201,245,66,0.25)";
 }
 
 // Carte à deux lignes plutôt qu'un seul pill compressé "10/10-12×50kg" : la valeur
-// principale (reps × charge) se lit d'un coup d'œil, l'objectif (si renseigné) et le
-// repos passent en sous-ligne secondaire. Le code couleur reste sur le fond de la carte.
+// principale (reps × charge, ou temps) se lit d'un coup d'œil, l'objectif (si renseigné)
+// et le repos passent en sous-ligne secondaire. Le code couleur reste sur le fond de la
+// carte, et marche aussi bien pour un objectif de reps que pour un objectif de temps
+// (gainage, planche...).
 function SetChip({ index, s }) {
-  if (s.mode === "time") {
-    return (
-      <div style={{ background: COLORS.surface2, borderRadius: 8, padding: "5px 9px", minWidth: 56 }}>
-        <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {index + 1}</div>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{s.seconds}s</div>
-      </div>
-    );
-  }
+  const hasTarget = s.targetMin != null && s.targetMax != null;
+  const isTime = s.mode === "time";
+  const mainValue = isTime ? s.seconds : s.reps;
+  const cardStyle = {
+    borderRadius: 8, padding: "5px 9px", minWidth: isTime ? 56 : 74,
+    background: hasTarget ? targetTint(mainValue, s.targetMin, s.targetMax) : COLORS.surface2,
+  };
   const loadLabel =
     s.weightType === "bodyweight" ? "PDC" :
     s.weightType === "bodyweight_plus" ? `PDC +${s.weight}kg` :
     s.weightType === "assisted" ? `PDC −${s.weight}kg` :
     `${s.weight}kg`;
-  const hasTarget = s.targetMin != null && s.targetMax != null;
-  const cardStyle = {
-    borderRadius: 8, padding: "5px 9px", minWidth: 74,
-    background: hasTarget ? targetTint(s.reps, s.targetMin, s.targetMax) : COLORS.surface2,
-  };
   return (
     <div style={cardStyle}>
       <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {index + 1}</div>
       <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
-        {s.reps} reps <span style={{ fontWeight: 400, color: COLORS.muted }}>×</span> {loadLabel}
+        {isTime ? (
+          `${s.seconds}s`
+        ) : (
+          <>{s.reps} reps <span style={{ fontWeight: 400, color: COLORS.muted }}>×</span> {loadLabel}</>
+        )}
       </div>
-      {hasTarget && <div style={{ fontSize: 10.5, marginTop: 2 }}>obj. {s.targetMin}-{s.targetMax}</div>}
+      {hasTarget && <div style={{ fontSize: 10.5, marginTop: 2 }}>obj. {s.targetMin}-{s.targetMax}{isTime ? "s" : ""}</div>}
       {s.restSeconds != null && (
         <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 2 }}>repos {s.restSeconds}s</div>
       )}

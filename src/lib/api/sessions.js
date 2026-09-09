@@ -161,7 +161,9 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
     ex.sets.forEach((s, j) => {
       const weightType = s.weightType || "external";
       const mode = s.mode === "time" ? "time" : "reps";
-      const hasTarget = mode === "reps" && s.targetMin !== "" && s.targetMin != null && s.targetMax !== "" && s.targetMax != null;
+      // target_reps_min/max sert d'objectif reps en mode "reps" et d'objectif de temps
+      // (secondes) en mode "time" (le nom de colonne date d'avant le support du temps).
+      const hasTarget = s.targetMin !== "" && s.targetMin != null && s.targetMax !== "" && s.targetMax != null;
       allSets.push({
         entry_exercise_id: entryExerciseId,
         reps: mode === "time" ? 0 : Number(s.reps) || 0,
