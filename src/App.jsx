@@ -87,7 +87,7 @@ export default function App() {
         )}
 
         {view === "calendar" && (
-          <CalendarView sessions={sessions} profiles={profiles} onOpenSession={setModalSessionId} onBack={() => setView("home")} />
+          <CalendarView sessions={sessions} profiles={profiles} currentUserId={userId} onOpenSession={setModalSessionId} onBack={() => setView("home")} />
         )}
 
         {view === "log" && (

@@ -5,7 +5,7 @@ import { COLORS } from "../lib/constants";
 import { todayKey, fmtDate } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
-export function CalendarView({ sessions, profiles, onOpenSession, onBack }) {
+export function CalendarView({ sessions, profiles, currentUserId, onOpenSession, onBack }) {
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const sessionsByDay = useMemo(() => {
     const map = {};
@@ -42,11 +42,15 @@ export function CalendarView({ sessions, profiles, onOpenSession, onBack }) {
           const inMonth = d.getMonth() === month.getMonth();
           const list = sessionsByDay[key] || [];
           const isToday = key === todayKey();
+          // Séance perso ce jour-là : j'ai (moi, currentUserId) mes propres stats
+          // enregistrées sur au moins une des séances du jour, pas juste "présent".
+          const trainedMyself = list.some((s) => s.entries[currentUserId]);
           return (
             <div
               key={i}
               onClick={() => list.length && setSelectedDay(key)}
               style={{
+                position: "relative",
                 aspectRatio: "1", borderRadius: 8, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                 background: list.length ? COLORS.lime : COLORS.surface, opacity: inMonth ? 1 : 0.35,
                 border: isToday ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.line}`,
@@ -54,6 +58,14 @@ export function CalendarView({ sessions, profiles, onOpenSession, onBack }) {
               }}
             >
               <span style={{ fontSize: 11, color: list.length ? "#111214" : COLORS.chalk, fontWeight: list.length ? 700 : 400 }}>{d.getDate()}</span>
+              {trainedMyself && (
+                <span
+                  style={{
+                    position: "absolute", bottom: 3, left: "50%", transform: "translateX(-50%)",
+                    width: 5, height: 5, borderRadius: "50%", background: COLORS.flame,
+                  }}
+                />
+              )}
             </div>
           );
         })}
