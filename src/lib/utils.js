@@ -5,6 +5,9 @@ export const fmtDate = (key) => {
   return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
 };
 
+// Heure de création (session.createdAt, un timestamp ms) au format "14:32".
+export const fmtTime = (ms) => new Date(ms).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

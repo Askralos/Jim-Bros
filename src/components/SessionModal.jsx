@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronDown, Loader2 } from "lucide-react";
+import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, presetToExercises } from "../lib/utils";
+import { fmtDate, fmtTime, presetToExercises } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { PresetsEditor } from "./PresetsEditor";
@@ -32,22 +32,39 @@ function targetTint(reps, min, max) {
   return "rgba(201,245,66,0.25)";
 }
 
-function SetChip({ s }) {
-  if (s.mode === "time") return <span style={styles.setChip}>{s.seconds}s</span>;
-  const suffix =
-    s.weightType === "bodyweight" ? " PDC" :
-    s.weightType === "bodyweight_plus" ? ` PDC+${s.weight}kg` :
-    s.weightType === "assisted" ? ` PDC-${s.weight}kg` :
-    `×${s.weight}kg`;
+// Carte à deux lignes plutôt qu'un seul pill compressé "10/10-12×50kg" : la valeur
+// principale (reps × charge) se lit d'un coup d'œil, l'objectif (si renseigné) et le
+// repos passent en sous-ligne secondaire. Le code couleur reste sur le fond de la carte.
+function SetChip({ index, s }) {
+  if (s.mode === "time") {
+    return (
+      <div style={{ background: COLORS.surface2, borderRadius: 8, padding: "5px 9px", minWidth: 56 }}>
+        <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {index + 1}</div>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{s.seconds}s</div>
+      </div>
+    );
+  }
+  const loadLabel =
+    s.weightType === "bodyweight" ? "PDC" :
+    s.weightType === "bodyweight_plus" ? `PDC +${s.weight}kg` :
+    s.weightType === "assisted" ? `PDC −${s.weight}kg` :
+    `${s.weight}kg`;
   const hasTarget = s.targetMin != null && s.targetMax != null;
-  const chipStyle = hasTarget ? { ...styles.setChip, background: targetTint(s.reps, s.targetMin, s.targetMax) } : styles.setChip;
+  const cardStyle = {
+    borderRadius: 8, padding: "5px 9px", minWidth: 74,
+    background: hasTarget ? targetTint(s.reps, s.targetMin, s.targetMax) : COLORS.surface2,
+  };
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={chipStyle}>
-        {s.reps}{hasTarget ? `/${s.targetMin}-${s.targetMax}` : ""}{suffix}
-      </span>
-      {s.restSeconds != null && <span style={{ fontSize: 10, color: COLORS.muted }}>repos {s.restSeconds}s</span>}
-    </span>
+    <div style={cardStyle}>
+      <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {index + 1}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+        {s.reps} reps <span style={{ fontWeight: 400, color: COLORS.muted }}>×</span> {loadLabel}
+      </div>
+      {hasTarget && <div style={{ fontSize: 10.5, marginTop: 2 }}>obj. {s.targetMin}-{s.targetMax}</div>}
+      {s.restSeconds != null && (
+        <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 2 }}>repos {s.restSeconds}s</div>
+      )}
+    </div>
   );
 }
 
@@ -313,9 +330,17 @@ export function SessionModal({
           <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
         </div>
         <SessionPhoto photo={session.photo} />
-        <p style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>
-          {fmtDate(session.date)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
-        </p>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
+            <Calendar size={13} />{fmtDate(session.date)}
+          </span>
+          {session.createdAt && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
+              <Clock size={13} />
+              Publiée à {fmtTime(session.createdAt)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
+            </span>
+          )}
+        </div>
 
         {participants.map((id) => {
           const entry = session.entries[id];
@@ -323,9 +348,9 @@ export function SessionModal({
           const solo = participants.length === 1;
           const isOpen = solo || expanded.has(id);
           return (
-            <div key={id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${COLORS.line}` }}>
+            <div key={id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${COLORS.line}` }}>
               {!solo && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }} onClick={() => toggleExpanded(id)}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => toggleExpanded(id)}>
                   <Avatar profile={profiles[id]} size={26} />
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{profiles[id]?.display_name || "?"}</span>
                   {entry ? <span style={{ fontSize: 11, color: COLORS.lime }}>Fait</span> : <span style={{ fontSize: 11, color: COLORS.muted }}>En attente</span>}
@@ -337,18 +362,31 @@ export function SessionModal({
                   {entry ? (
                     <>
                       {entry.exercises.map((ex, i) => (
-                        <div key={i} style={{ marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
-                            {ex.sets.map((s, j) => <SetChip key={j} s={s} />)}
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {ex.sets.map((s, j) => <SetChip key={j} index={j} s={s} />)}
                           </div>
                         </div>
                       ))}
                       {entry.feeling && (
-                        <p style={{ fontSize: 12, color: COLORS.lime, marginTop: 6, marginBottom: 0 }}>{feelingLabel(entry.feeling)}</p>
+                        <span
+                          style={{
+                            display: "inline-block", fontSize: 11, fontWeight: 700, color: COLORS.lime,
+                            background: "rgba(201,245,66,0.12)", border: "1px solid rgba(201,245,66,0.35)",
+                            borderRadius: 20, padding: "3px 10px", marginTop: 4,
+                          }}
+                        >
+                          {feelingLabel(entry.feeling)}
+                        </span>
                       )}
                       {entry.comment && (
-                        <p style={{ fontSize: 13, color: COLORS.chalk, marginTop: 4, lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
+                        <p
+                          style={{
+                            fontSize: 13, color: COLORS.chalk, marginTop: 8, marginBottom: 0, lineHeight: 1.4, whiteSpace: "pre-wrap",
+                            background: COLORS.surface2, borderRadius: 8, padding: "8px 10px",
+                          }}
+                        >
                           {entry.comment}
                         </p>
                       )}
