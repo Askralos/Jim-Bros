@@ -142,23 +142,28 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
     .single();
   if (error) throw error;
 
-  await supabase.from("entry_exercises").delete().eq("entry_id", entry.id);
+  const { error: delErr } = await supabase.from("entry_exercises").delete().eq("entry_id", entry.id);
+  if (delErr) throw delErr;
+  if (!exercises.length) return entry.id;
 
-  for (let i = 0; i < exercises.length; i++) {
-    const ex = exercises[i];
-    const { data: exRow, error: exErr } = await supabase
-      .from("entry_exercises")
-      .insert({ entry_id: entry.id, exercise_name: ex.name, position: i })
-      .select()
-      .single();
-    if (exErr) throw exErr;
+  // Deux inserts multi-lignes au lieu d'un aller-retour par exercice : sur une séance à
+  // 5-6 exercices ça divise par ~5 le nombre de requêtes réseau (c'était la cause
+  // principale de la lenteur ressentie à la publication).
+  const exerciseRows = exercises.map((ex, i) => ({ entry_id: entry.id, exercise_name: ex.name, position: i }));
+  const { data: insertedExercises, error: exErr } = await supabase.from("entry_exercises").insert(exerciseRows).select();
+  if (exErr) throw exErr;
 
-    const sets = ex.sets.map((s, j) => {
+  const exerciseIdByPosition = new Map(insertedExercises.map((row) => [row.position, row.id]));
+
+  const allSets = [];
+  exercises.forEach((ex, i) => {
+    const entryExerciseId = exerciseIdByPosition.get(i);
+    ex.sets.forEach((s, j) => {
       const weightType = s.weightType || "external";
       const mode = s.mode === "time" ? "time" : "reps";
       const hasTarget = mode === "reps" && s.targetMin !== "" && s.targetMin != null && s.targetMax !== "" && s.targetMax != null;
-      return {
-        entry_exercise_id: exRow.id,
+      allSets.push({
+        entry_exercise_id: entryExerciseId,
         reps: mode === "time" ? 0 : Number(s.reps) || 0,
         seconds: mode === "time" ? Number(s.seconds) || 0 : null,
         mode,
@@ -169,12 +174,12 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
         target_reps_min: hasTarget ? Number(s.targetMin) : null,
         target_reps_max: hasTarget ? Number(s.targetMax) : null,
         position: j,
-      };
+      });
     });
-    if (sets.length) {
-      const { error: setErr } = await supabase.from("entry_sets").insert(sets);
-      if (setErr) throw setErr;
-    }
+  });
+  if (allSets.length) {
+    const { error: setErr } = await supabase.from("entry_sets").insert(allSets);
+    if (setErr) throw setErr;
   }
   return entry.id;
 }

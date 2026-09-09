@@ -83,6 +83,8 @@ export function SessionModal({
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
   const [submittingEntry, setSubmittingEntry] = useState(false);
   const [submittingSession, setSubmittingSession] = useState(false);
+  const [entryError, setEntryError] = useState("");
+  const [sessionError, setSessionError] = useState("");
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
@@ -165,15 +167,20 @@ export function SessionModal({
             onChange={(e) => setFormComment(e.target.value)}
           />
 
+          {entryError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{entryError}</p>}
+
           <button
             style={styles.primaryBtn}
             disabled={!clean.length || submittingEntry}
             onClick={async () => {
               if (submittingEntry) return;
               setSubmittingEntry(true);
+              setEntryError("");
               try {
                 await onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null, formFeeling, formComment);
                 setMode("view");
+              } catch (e) {
+                setEntryError(e.message || "L'enregistrement a échoué. Réessaie.");
               } finally {
                 setSubmittingEntry(false);
               }
@@ -263,12 +270,15 @@ export function SessionModal({
             </>
           )}
 
+          {sessionError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{sessionError}</p>}
+
           <button
             style={styles.primaryBtn}
             disabled={uploadingSession || submittingSession}
             onClick={async () => {
               if (submittingSession) return;
               setSubmittingSession(true);
+              setSessionError("");
               try {
                 await onEditSession({
                   title: editMeta.title.trim(), date: editMeta.date,
@@ -277,6 +287,8 @@ export function SessionModal({
                   participantIds: editMeta.participants, creatorId: session.creator,
                 });
                 setMode("view");
+              } catch (e) {
+                setSessionError(e.message || "L'enregistrement a échoué. Réessaie.");
               } finally {
                 setSubmittingSession(false);
               }

@@ -78,6 +78,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
   const [bodyweightKg, setBodyweightKg] = useState("");
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [compareSessionId, setCompareSessionId] = useState(null);
   const [showComparePicker, setShowComparePicker] = useState(false);
   const fileRef = useRef(null);
@@ -101,6 +102,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
     setTouched(true);
     if (!valid || submitting) return;
     setSubmitting(true);
+    setSubmitError("");
     try {
       await onSubmit(
         {
@@ -115,6 +117,8 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
         },
         clean
       );
+    } catch (e) {
+      setSubmitError(e.message || "La publication a échoué. Réessaie.");
     } finally {
       setSubmitting(false);
     }
@@ -210,6 +214,8 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
           onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
         />
       )}
+
+      {submitError && <p style={{ color: COLORS.flame, fontSize: 13, marginTop: 10, marginBottom: -8 }}>{submitError}</p>}
 
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onCancel} disabled={submitting}>Annuler</button>

@@ -3,21 +3,23 @@ import { Camera, Dumbbell, X, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constants";
-import { exerciseHistoryByName } from "../lib/utils";
+import { exerciseSetHistoryByName, fmtDate } from "../lib/utils";
 import { uploadPhoto } from "../lib/api/storage";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
 import { useExerciseFilter, ExerciseFilterBar, TagBadges } from "./ExercisePicker";
 import { PresetsEditor } from "./PresetsEditor";
 
 const TRACK_METRICS = [
-  { key: "maxWeight", label: "Poids", unit: "kg" },
-  { key: "maxReps", label: "Reps", unit: "" },
-  { key: "totalSets", label: "Séries", unit: "" },
+  { key: "weight", label: "Poids", unit: "kg" },
+  { key: "reps", label: "Reps", unit: "" },
 ];
 
+// Un point par série (pas juste la meilleure) : l'axe X est l'ordre chronologique des
+// séries (date + position dans la séance), pas une échelle de dates continue, sinon
+// toutes les séries d'une même séance s'empileraient sur un seul point.
 function ExerciseChart({ points, metric, onMetricChange }) {
   const active = TRACK_METRICS.find((m) => m.key === metric) || TRACK_METRICS[0];
-  const chartData = points.map((p) => ({ date: p.date.slice(5), value: p[active.key] }));
+  const chartData = points.map((p, i) => ({ x: i + 1, date: p.date, value: p[active.key] }));
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10 }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -30,27 +32,32 @@ function ExerciseChart({ points, metric, onMetricChange }) {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="x" hide />
               <YAxis hide domain={["dataMin", "dataMax + 1"]} />
-              <Tooltip contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }} formatter={(v) => [`${v}${active.unit}`, active.label]} />
+              <Tooltip
+                labelFormatter={(_, payload) => (payload?.[0] ? fmtDate(payload[0].payload.date) : "")}
+                contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }}
+                formatter={(v) => [`${v}${active.unit}`, active.label]}
+              />
               <Line type="monotone" dataKey="value" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <p style={{ color: COLORS.muted, fontSize: 12 }}>Fais cet exercice sur au moins 2 séances pour voir la courbe.</p>
+        <p style={{ color: COLORS.muted, fontSize: 12 }}>Fais au moins 2 séries de cet exercice pour voir la courbe.</p>
       )}
     </div>
   );
 }
 
 // Sous-onglet "Suivi" : liste des exercices déjà pratiqués (en reps) par le user,
-// avec un mini-graphique par exercice filtrable poids/reps/séries.
+// avec un mini-graphique par exercice filtrable poids/reps. Toutes les séries sont
+// affichées (pas seulement la meilleure de chaque séance).
 function ExerciseTrackingTab({ entries, sessions, currentUserId }) {
-  const history = useMemo(() => exerciseHistoryByName(entries, sessions, currentUserId), [entries, sessions, currentUserId]);
+  const history = useMemo(() => exerciseSetHistoryByName(entries, sessions, currentUserId), [entries, sessions, currentUserId]);
   const names = Object.keys(history).sort((a, b) => a.localeCompare(b, "fr"));
   const [expanded, setExpanded] = useState(null);
-  const [metric, setMetric] = useState("maxWeight");
+  const [metric, setMetric] = useState("weight");
 
   return (
     <div>
@@ -59,6 +66,7 @@ function ExerciseTrackingTab({ entries, sessions, currentUserId }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {names.map((name) => {
           const points = history[name];
+          const sessionCount = new Set(points.map((p) => p.sessionId)).size;
           const isOpen = expanded === name;
           return (
             <div
@@ -69,7 +77,9 @@ function ExerciseTrackingTab({ entries, sessions, currentUserId }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>
-                  <span style={{ fontSize: 11, color: COLORS.muted }}>{points.length} séance{points.length > 1 ? "s" : ""}</span>
+                  <span style={{ fontSize: 11, color: COLORS.muted }}>
+                    {points.length} série{points.length > 1 ? "s" : ""} sur {sessionCount} séance{sessionCount > 1 ? "s" : ""}
+                  </span>
                 </div>
                 {isOpen && <ExerciseChart points={points} metric={metric} onMetricChange={setMetric} />}
               </div>

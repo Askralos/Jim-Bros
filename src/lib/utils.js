@@ -116,34 +116,31 @@ export function formatSet(s) {
   return `${s.reps}${suffix}`;
 }
 
-// Historique par exercice d'un user : { [nomExercice]: [{date, sessionId, maxWeight, maxReps, totalSets}, ...] }
-// trié par date croissante. Sert à l'onglet "Suivi" (graphique par exercice). Ne couvre
-// que les séries en mode "reps" (les séries en temps n'ont pas de charge/reps comparables).
-export function exerciseHistoryByName(entries, sessions, userId) {
+// Historique par exercice d'un user : { [nomExercice]: [{date, sessionId, setIndex, reps, weight}, ...] }
+// UNE ENTREE PAR SERIE (pas juste la meilleure), triée chronologiquement (date de la
+// séance puis position dans la séance). Sert à l'onglet "Suivi" (graphique par exercice).
+// Ne couvre que les séries en mode "reps" (les séries en temps n'ont pas de charge/reps
+// comparables).
+export function exerciseSetHistoryByName(entries, sessions, userId) {
   const byName = {};
   entries
     .filter((e) => e.userId === userId)
     .forEach((e) => {
       const session = sessions.find((s) => s.id === e.sessionId);
       if (!session) return;
-      const seen = {};
       e.exercises.forEach((ex) => {
-        const repsSets = ex.sets.filter((s) => s.mode !== "time");
-        if (!repsSets.length) return;
-        const maxWeight = Math.max(0, ...repsSets.map((s) => effectiveSetLoad(s, e.bodyweightKg)));
-        const maxReps = Math.max(0, ...repsSets.map((s) => Number(s.reps) || 0));
-        if (!seen[ex.name]) seen[ex.name] = { maxWeight, maxReps, totalSets: repsSets.length };
-        else {
-          seen[ex.name].maxWeight = Math.max(seen[ex.name].maxWeight, maxWeight);
-          seen[ex.name].maxReps = Math.max(seen[ex.name].maxReps, maxReps);
-          seen[ex.name].totalSets += repsSets.length;
-        }
-      });
-      Object.entries(seen).forEach(([name, v]) => {
-        (byName[name] = byName[name] || []).push({ date: session.date, sessionId: session.id, ...v });
+        ex.sets.forEach((s, i) => {
+          if (s.mode === "time") return;
+          const reps = Number(s.reps) || 0;
+          if (!reps) return;
+          const weight = effectiveSetLoad(s, e.bodyweightKg);
+          (byName[ex.name] = byName[ex.name] || []).push({ date: session.date, sessionId: session.id, setIndex: i, reps, weight });
+        });
       });
     });
-  Object.values(byName).forEach((arr) => arr.sort((a, b) => (a.date > b.date ? 1 : -1)));
+  Object.values(byName).forEach((arr) =>
+    arr.sort((a, b) => (a.date === b.date ? a.setIndex - b.setIndex : a.date < b.date ? -1 : 1))
+  );
   return byName;
 }
 
