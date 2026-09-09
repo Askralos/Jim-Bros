@@ -7,7 +7,7 @@ const SESSION_SELECT = `
     id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
     entry_exercises (
       id, exercise_name, position,
-      entry_sets ( reps, weight_kg, weight_type, mode, seconds, position )
+      entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position )
     )
   )
 `;
@@ -24,7 +24,10 @@ function shapeSession(row) {
         name: ex.exercise_name,
         sets: [...ex.entry_sets]
           .sort((a, b) => a.position - b.position)
-          .map((s) => ({ reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds })),
+          .map((s) => ({
+            reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds,
+            restSeconds: s.rest_seconds, targetMin: s.target_reps_min, targetMax: s.target_reps_max,
+          })),
       }));
     entries[e.user_id] = {
       entryId: e.id, exercises, photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
@@ -153,6 +156,7 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
     const sets = ex.sets.map((s, j) => {
       const weightType = s.weightType || "external";
       const mode = s.mode === "time" ? "time" : "reps";
+      const hasTarget = mode === "reps" && s.targetMin !== "" && s.targetMin != null && s.targetMax !== "" && s.targetMax != null;
       return {
         entry_exercise_id: exRow.id,
         reps: mode === "time" ? 0 : Number(s.reps) || 0,
@@ -161,6 +165,9 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
         weight_type: weightType,
         weight_kg: weightType === "bodyweight" ? null : (s.weight !== "" && s.weight != null ? Number(s.weight) : null),
         bodyweight: weightType === "bodyweight",
+        rest_seconds: s.restSeconds !== "" && s.restSeconds != null ? Number(s.restSeconds) : null,
+        target_reps_min: hasTarget ? Number(s.targetMin) : null,
+        target_reps_max: hasTarget ? Number(s.targetMax) : null,
         position: j,
       };
     });

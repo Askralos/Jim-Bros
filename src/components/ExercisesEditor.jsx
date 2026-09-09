@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Clock, Target } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, WEIGHT_TYPES } from "../lib/constants";
 import { ExercisePicker, ExerciseRowThumb } from "./ExercisePicker";
 
-export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "" };
+export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "" };
 export const emptyExercise = () => ({ name: "", sets: [{ ...EMPTY_SET }] });
 
 export function cleanExercises(exercises) {
@@ -19,6 +19,10 @@ export function cleanExercises(exercises) {
 
 export function ExercisesEditor({ exercises, onChange, exerciseList }) {
   const [pickerFor, setPickerFor] = useState(null); // index de la carte en cours de sélection
+  // "i-j" révélés manuellement (les champs remplis via duplication de série restent
+  // visibles sans passer par ici, voir showRest/showTarget ci-dessous).
+  const [revealRest, setRevealRest] = useState(() => new Set());
+  const [revealTarget, setRevealTarget] = useState(() => new Set());
 
   const updateEx = (i, patch) => {
     const next = [...exercises];
@@ -49,6 +53,15 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
     onChange(next);
   };
 
+  const toggleReveal = (setter, key) => setter((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const clearRest = (i, j, key) => { updateSet(i, j, "restSeconds", ""); toggleReveal(setRevealRest, key); };
+  const clearTarget = (i, j, key) => {
+    const next = [...exercises];
+    next[i].sets[j] = { ...next[i].sets[j], targetMin: "", targetMax: "" };
+    onChange(next);
+    toggleReveal(setRevealTarget, key);
+  };
+
   return (
     <div>
       {exercises.map((ex, i) => {
@@ -73,31 +86,76 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
               <button type="button" onClick={() => setMode(i, "time")} style={{ ...styles.tabPill, ...(mode === "time" ? styles.tabPillActive : {}) }}>Temps (sec)</button>
             </div>
 
-            {ex.sets.map((s, j) => (
-              <div key={j} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: COLORS.muted, width: 14, flexShrink: 0 }}>{j + 1}</span>
-                {mode === "time" ? (
-                  <input style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }} placeholder="Sec" type="number" value={s.seconds} onChange={(e) => updateSet(i, j, "seconds", e.target.value)} />
-                ) : (
-                  <input style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }} placeholder="Reps" type="number" value={s.reps} onChange={(e) => updateSet(i, j, "reps", e.target.value)} />
-                )}
-                {s.weightType !== "bodyweight" && (
-                  <input
-                    style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }}
-                    placeholder={s.weightType === "assisted" ? "- Kg" : s.weightType === "bodyweight_plus" ? "+ Kg" : "Kg"}
-                    type="number"
-                    value={s.weight}
-                    onChange={(e) => updateSet(i, j, "weight", e.target.value)}
-                  />
-                )}
-                <select style={{ ...styles.setInput, flex: "1 1 128px", minWidth: 118 }} value={s.weightType} onChange={(e) => updateSet(i, j, "weightType", e.target.value)}>
-                  {WEIGHT_TYPES.map((w) => <option key={w.key} value={w.key}>{w.label}</option>)}
-                </select>
-                {ex.sets.length > 1 && (
-                  <button style={{ ...styles.iconBtn, flexShrink: 0, marginLeft: "auto" }} onClick={() => removeSet(i, j)}><X size={13} /></button>
-                )}
-              </div>
-            ))}
+            {ex.sets.map((s, j) => {
+              const key = `${i}-${j}`;
+              const showRest = revealRest.has(key) || s.restSeconds !== "";
+              const showTarget = revealTarget.has(key) || s.targetMin !== "" || s.targetMax !== "";
+              return (
+                <div key={j} style={{ marginBottom: 8 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: COLORS.muted, width: 14, flexShrink: 0 }}>{j + 1}</span>
+                    {mode === "time" ? (
+                      <input style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }} placeholder="Sec" type="number" value={s.seconds} onChange={(e) => updateSet(i, j, "seconds", e.target.value)} />
+                    ) : (
+                      <input style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }} placeholder="Reps" type="number" value={s.reps} onChange={(e) => updateSet(i, j, "reps", e.target.value)} />
+                    )}
+                    {s.weightType !== "bodyweight" && (
+                      <input
+                        style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }}
+                        placeholder={s.weightType === "assisted" ? "- Kg" : s.weightType === "bodyweight_plus" ? "+ Kg" : "Kg"}
+                        type="number"
+                        value={s.weight}
+                        onChange={(e) => updateSet(i, j, "weight", e.target.value)}
+                      />
+                    )}
+                    <select style={{ ...styles.setInput, flex: "1 1 128px", minWidth: 118 }} value={s.weightType} onChange={(e) => updateSet(i, j, "weightType", e.target.value)}>
+                      {WEIGHT_TYPES.map((w) => <option key={w.key} value={w.key}>{w.label}</option>)}
+                    </select>
+                    {ex.sets.length > 1 && (
+                      <button style={{ ...styles.iconBtn, flexShrink: 0, marginLeft: "auto" }} onClick={() => removeSet(i, j)}><X size={13} /></button>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 4, marginLeft: 20 }}>
+                    {showRest ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Clock size={12} color={COLORS.muted} />
+                        <input
+                          style={{ ...styles.setInput, width: 60, padding: "6px 8px" }}
+                          placeholder="Repos (s)" type="number" value={s.restSeconds}
+                          onChange={(e) => updateSet(i, j, "restSeconds", e.target.value)}
+                        />
+                        <button style={styles.iconBtn} onClick={() => clearRest(i, j, key)}><X size={12} /></button>
+                      </div>
+                    ) : (
+                      <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealRest, key)}>+ Temps de repos</button>
+                    )}
+
+                    {mode === "reps" && (
+                      showTarget ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <Target size={12} color={COLORS.muted} />
+                          <input
+                            style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                            placeholder="Min" type="number" value={s.targetMin}
+                            onChange={(e) => updateSet(i, j, "targetMin", e.target.value)}
+                          />
+                          <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
+                          <input
+                            style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                            placeholder="Max" type="number" value={s.targetMax}
+                            onChange={(e) => updateSet(i, j, "targetMax", e.target.value)}
+                          />
+                          <button style={styles.iconBtn} onClick={() => clearTarget(i, j, key)}><X size={12} /></button>
+                        </div>
+                      ) : (
+                        <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, key)}>+ Objectif de reps</button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
             <button style={styles.linkBtn} onClick={() => addSet(i)}>+ série</button>
           </div>
         );

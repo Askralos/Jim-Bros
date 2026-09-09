@@ -92,7 +92,7 @@ export default function App() {
 
         {view === "log" && (
           <NewSession
-            currentUserId={userId} otherProfiles={otherProfiles} exerciseList={exercises}
+            currentUserId={userId} otherProfiles={otherProfiles} exerciseList={exercises} sessions={sessions}
             initialExercises={newSessionExercises}
             onSubmit={async (payload, ownExercises) => {
               await createSession(payload, userId, ownExercises);
@@ -123,6 +123,7 @@ export default function App() {
         {view === "exercises" && (
           <ExercisesLibrary
             exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
+            entries={entries} sessions={sessions}
             onCreatePreset={handleCreatePreset}
             onUpdatePreset={handleUpdatePreset}
             onDeletePreset={handleDeletePreset}

@@ -8,6 +8,7 @@ export const COLORS = {
   lime: "#C9F542",
   flame: "#FF6B4A",
   blue: "#5B9BD5",
+  yellow: "#E0C64A",
 };
 
 export const SESSION_FEELINGS = [

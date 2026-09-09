@@ -1,11 +1,86 @@
-import { useState, useRef } from "react";
-import { Camera, Dumbbell, X, Pencil, Trash2 } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { Camera, Dumbbell, X, Pencil, Trash2, ChevronDown } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constants";
+import { exerciseHistoryByName } from "../lib/utils";
 import { uploadPhoto } from "../lib/api/storage";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
 import { useExerciseFilter, ExerciseFilterBar, TagBadges } from "./ExercisePicker";
 import { PresetsEditor } from "./PresetsEditor";
+
+const TRACK_METRICS = [
+  { key: "maxWeight", label: "Poids", unit: "kg" },
+  { key: "maxReps", label: "Reps", unit: "" },
+  { key: "totalSets", label: "Séries", unit: "" },
+];
+
+function ExerciseChart({ points, metric, onMetricChange }) {
+  const active = TRACK_METRICS.find((m) => m.key === metric) || TRACK_METRICS[0];
+  const chartData = points.map((p) => ({ date: p.date.slice(5), value: p[active.key] }));
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {TRACK_METRICS.map((m) => (
+          <button key={m.key} type="button" onClick={() => onMetricChange(m.key)} style={{ ...styles.tabPill, ...(metric === m.key ? styles.tabPillActive : {}) }}>{m.label}</button>
+        ))}
+      </div>
+      {chartData.length > 1 ? (
+        <div style={{ width: "100%", height: 140 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis hide domain={["dataMin", "dataMax + 1"]} />
+              <Tooltip contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }} formatter={(v) => [`${v}${active.unit}`, active.label]} />
+              <Line type="monotone" dataKey="value" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p style={{ color: COLORS.muted, fontSize: 12 }}>Fais cet exercice sur au moins 2 séances pour voir la courbe.</p>
+      )}
+    </div>
+  );
+}
+
+// Sous-onglet "Suivi" : liste des exercices déjà pratiqués (en reps) par le user,
+// avec un mini-graphique par exercice filtrable poids/reps/séries.
+function ExerciseTrackingTab({ entries, sessions, currentUserId }) {
+  const history = useMemo(() => exerciseHistoryByName(entries, sessions, currentUserId), [entries, sessions, currentUserId]);
+  const names = Object.keys(history).sort((a, b) => a.localeCompare(b, "fr"));
+  const [expanded, setExpanded] = useState(null);
+  const [metric, setMetric] = useState("maxWeight");
+
+  return (
+    <div>
+      <h2 style={styles.sectionTitle}>Suivi ({names.length})</h2>
+      {names.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore d'exercice en répétitions enregistré.</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {names.map((name) => {
+          const points = history[name];
+          const isOpen = expanded === name;
+          return (
+            <div
+              key={name}
+              style={{ ...styles.friendRow, cursor: "pointer", alignItems: isOpen ? "flex-start" : "center" }}
+              onClick={() => setExpanded(isOpen ? null : name)}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{name}</span>
+                  <span style={{ fontSize: 11, color: COLORS.muted }}>{points.length} séance{points.length > 1 ? "s" : ""}</span>
+                </div>
+                {isOpen && <ExerciseChart points={points} metric={metric} onMetricChange={setMetric} />}
+              </div>
+              <ChevronDown size={14} color={COLORS.muted} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s ease", flexShrink: 0, marginTop: isOpen ? 2 : 0 }} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const EMPTY_FORM = { name: "", photo: null, tags: [] };
 
@@ -79,7 +154,7 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   );
 }
 
-export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset }) {
+export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset, entries, sessions }) {
   const [tab, setTab] = useState("library");
   const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
   const [formTarget, setFormTarget] = useState(null); // "new" = création, sinon l'exercice édité, null = fermé
@@ -97,6 +172,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         <button onClick={() => setTab("library")} style={{ ...styles.tabPill, ...(tab === "library" ? styles.tabPillActive : {}) }}>Exercices</button>
         <button onClick={() => setTab("presets")} style={{ ...styles.tabPill, ...(tab === "presets" ? styles.tabPillActive : {}) }}>Presets</button>
+        <button onClick={() => setTab("tracking")} style={{ ...styles.tabPill, ...(tab === "tracking" ? styles.tabPillActive : {}) }}>Suivi</button>
       </div>
 
       {tab === "presets" ? (
@@ -104,6 +180,8 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
           exerciseList={exerciseList} currentUserId={currentUserId} profiles={profiles} presets={presets}
           onCreate={onCreatePreset} onUpdate={onUpdatePreset} onDelete={onDeletePreset}
         />
+      ) : tab === "tracking" ? (
+        <ExerciseTrackingTab entries={entries} sessions={sessions} currentUserId={currentUserId} />
       ) : (
         <>
           <h2 style={styles.sectionTitle}>Exercices ({exerciseList.length})</h2>

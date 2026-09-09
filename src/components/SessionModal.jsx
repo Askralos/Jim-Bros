@@ -23,6 +23,15 @@ function SessionPhoto({ photo }) {
   );
 }
 
+// Code couleur par rapport à l'objectif de reps (si renseigné) : en dessous de la
+// fourchette = rouge, dedans = vert, au-dessus = jaune.
+function targetTint(reps, min, max) {
+  const r = Number(reps);
+  if (r < min) return "rgba(255,107,74,0.28)";
+  if (r > max) return "rgba(224,198,74,0.3)";
+  return "rgba(201,245,66,0.25)";
+}
+
 function SetChip({ s }) {
   if (s.mode === "time") return <span style={styles.setChip}>{s.seconds}s</span>;
   const suffix =
@@ -30,7 +39,16 @@ function SetChip({ s }) {
     s.weightType === "bodyweight_plus" ? ` PDC+${s.weight}kg` :
     s.weightType === "assisted" ? ` PDC-${s.weight}kg` :
     `×${s.weight}kg`;
-  return <span style={styles.setChip}>{s.reps}{suffix}</span>;
+  const hasTarget = s.targetMin != null && s.targetMax != null;
+  const chipStyle = hasTarget ? { ...styles.setChip, background: targetTint(s.reps, s.targetMin, s.targetMax) } : styles.setChip;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={chipStyle}>
+        {s.reps}{hasTarget ? `/${s.targetMin}-${s.targetMax}` : ""}{suffix}
+      </span>
+      {s.restSeconds != null && <span style={{ fontSize: 10, color: COLORS.muted }}>repos {s.restSeconds}s</span>}
+    </span>
+  );
 }
 
 export function SessionModal({
@@ -41,7 +59,17 @@ export function SessionModal({
   const [mode, setMode] = useState("view");
   const myEntry = session.entries[currentUserId];
   const [formExercises, setFormExercises] = useState(() =>
-    myEntry ? myEntry.exercises.map((e) => ({ ...e, sets: e.sets.map((s) => ({ ...s })) })) : [emptyExercise()]
+    myEntry
+      ? myEntry.exercises.map((e) => ({
+          ...e,
+          sets: e.sets.map((s) => ({
+            ...s,
+            restSeconds: s.restSeconds ?? "",
+            targetMin: s.targetMin ?? "",
+            targetMax: s.targetMax ?? "",
+          })),
+        }))
+      : [emptyExercise()]
   );
   const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
   const [formFeeling, setFormFeeling] = useState(myEntry?.feeling || null);

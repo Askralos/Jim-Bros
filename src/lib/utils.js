@@ -16,7 +16,10 @@ export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u
 export const presetToExercises = (preset) =>
   preset.exercises.map((ex) => ({
     name: ex.name,
-    sets: Array.from({ length: ex.setCount }, () => ({ reps: "", weight: "", weightType: "external", mode: "reps", seconds: "" })),
+    sets: Array.from({ length: ex.setCount }, () => ({
+      reps: "", weight: "", weightType: "external", mode: "reps", seconds: "",
+      restSeconds: "", targetMin: "", targetMax: "",
+    })),
   }));
 
 // Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
@@ -98,6 +101,50 @@ export function computeProfileInsights(userId, entries, sessions) {
   });
 
   return { myEntries, bestProgress };
+}
+
+// Formate une série pour un affichage compact ("10×50kg", "8 PDC+5kg", "45s"...).
+// Utilisé pour la comparaison avec une séance passée (pas besoin des infos
+// contextuelles complètes, juste une lecture rapide).
+export function formatSet(s) {
+  if (s.mode === "time") return `${s.seconds}s`;
+  const suffix =
+    s.weightType === "bodyweight" ? " PDC" :
+    s.weightType === "bodyweight_plus" ? ` PDC+${s.weight}kg` :
+    s.weightType === "assisted" ? ` PDC-${s.weight}kg` :
+    `×${s.weight}kg`;
+  return `${s.reps}${suffix}`;
+}
+
+// Historique par exercice d'un user : { [nomExercice]: [{date, sessionId, maxWeight, maxReps, totalSets}, ...] }
+// trié par date croissante. Sert à l'onglet "Suivi" (graphique par exercice). Ne couvre
+// que les séries en mode "reps" (les séries en temps n'ont pas de charge/reps comparables).
+export function exerciseHistoryByName(entries, sessions, userId) {
+  const byName = {};
+  entries
+    .filter((e) => e.userId === userId)
+    .forEach((e) => {
+      const session = sessions.find((s) => s.id === e.sessionId);
+      if (!session) return;
+      const seen = {};
+      e.exercises.forEach((ex) => {
+        const repsSets = ex.sets.filter((s) => s.mode !== "time");
+        if (!repsSets.length) return;
+        const maxWeight = Math.max(0, ...repsSets.map((s) => effectiveSetLoad(s, e.bodyweightKg)));
+        const maxReps = Math.max(0, ...repsSets.map((s) => Number(s.reps) || 0));
+        if (!seen[ex.name]) seen[ex.name] = { maxWeight, maxReps, totalSets: repsSets.length };
+        else {
+          seen[ex.name].maxWeight = Math.max(seen[ex.name].maxWeight, maxWeight);
+          seen[ex.name].maxReps = Math.max(seen[ex.name].maxReps, maxReps);
+          seen[ex.name].totalSets += repsSets.length;
+        }
+      });
+      Object.entries(seen).forEach(([name, v]) => {
+        (byName[name] = byName[name] || []).push({ date: session.date, sessionId: session.id, ...v });
+      });
+    });
+  Object.values(byName).forEach((arr) => arr.sort((a, b) => (a.date > b.date ? 1 : -1)));
+  return byName;
 }
 
 // Streak tolérant à 1 jour de repos entre deux séances (utile pour un split PPL avec repos)
