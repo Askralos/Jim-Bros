@@ -65,9 +65,11 @@ export function CalendarView({ sessions, profiles, onOpenSession, onBack }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {(sessionsByDay[selectedDay] || []).map((s) => (
               <div key={s.id} style={styles.historyRow} onClick={() => onOpenSession(s.id)}>
-                {s.photo && <img src={s.photo} alt="" style={{ width: 34, height: 34, borderRadius: 7, objectFit: "cover" }} />}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                  {s.photo && <img src={s.photo} alt="" style={{ width: 34, height: 34, borderRadius: 7, objectFit: "cover", flexShrink: 0 }} />}
+                  <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "Séance"}</span>
+                </div>
                 <AvatarStack userIds={s.participants} profiles={profiles} size={22} />
-                <span style={{ fontSize: 13 }}>{s.title || "Séance"}</span>
               </div>
             ))}
           </div>
