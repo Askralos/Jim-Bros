@@ -21,7 +21,7 @@ export const presetToExercises = (preset) =>
   preset.exercises.map((ex) => ({
     name: ex.name,
     sets: Array.from({ length: ex.setCount }, () => ({
-      reps: "", weight: "", weightType: "external", mode: "reps", seconds: "",
+      reps: "", weight: "", weightType: "external", mode: ex.mode === "time" ? "time" : "reps", seconds: "",
       restSeconds: ex.restSeconds != null ? String(ex.restSeconds) : "",
       targetMin: ex.targetMin != null ? String(ex.targetMin) : "",
       targetMax: ex.targetMax != null ? String(ex.targetMax) : "",

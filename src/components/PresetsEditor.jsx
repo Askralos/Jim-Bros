@@ -4,7 +4,7 @@ import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { ExercisePicker } from "./ExercisePicker";
 
-const emptyPresetExercise = () => ({ name: "", setCount: 3, restSeconds: "", targetMin: "", targetMax: "" });
+const emptyPresetExercise = () => ({ name: "", setCount: 3, mode: "reps", restSeconds: "", targetMin: "", targetMax: "" });
 
 function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
   return (
@@ -21,15 +21,16 @@ function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDe
             {preset.exercises.length === 0 && <li style={{ fontSize: 12, color: COLORS.muted }}>Vide</li>}
             {preset.exercises.map((e, i) => {
               const hasTarget = e.targetMin != null && e.targetMax != null;
+              const isTime = e.mode === "time";
               return (
                 <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>{e.name}</span>
-                    <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}</span>
+                    <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}{isTime ? " (temps)" : ""}</span>
                   </div>
                   {(hasTarget || e.restSeconds != null) && (
                     <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 11, color: COLORS.muted }}>
-                      {hasTarget && <span>obj. {e.targetMin}-{e.targetMax} reps</span>}
+                      {hasTarget && <span>obj. {e.targetMin}-{e.targetMax}{isTime ? "s" : " reps"}</span>}
                       {e.restSeconds != null && <span>repos {e.restSeconds}s</span>}
                     </div>
                   )}
@@ -85,6 +86,7 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
       preset.exercises.length
         ? preset.exercises.map((e) => ({
             ...e,
+            mode: e.mode === "time" ? "time" : "reps",
             restSeconds: e.restSeconds ?? "",
             targetMin: e.targetMin ?? "",
             targetMax: e.targetMax ?? "",
@@ -118,7 +120,7 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
     const clean = exercises
       .filter((e) => e.name)
       .map((e) => ({
-        name: e.name, setCount: Math.max(1, Number(e.setCount) || 1),
+        name: e.name, setCount: Math.max(1, Number(e.setCount) || 1), mode: e.mode,
         restSeconds: e.restSeconds, targetMin: e.targetMin, targetMax: e.targetMax,
       }));
     if (editing === "new") await onCreate(name.trim(), clean);
@@ -164,6 +166,10 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
                 </div>
               )}
             </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+              <button type="button" onClick={() => updateExAt(i, { mode: "reps" })} style={{ ...styles.tabPill, ...(ex.mode !== "time" ? styles.tabPillActive : {}) }}>Reps</button>
+              <button type="button" onClick={() => updateExAt(i, { mode: "time" })} style={{ ...styles.tabPill, ...(ex.mode === "time" ? styles.tabPillActive : {}) }}>Temps</button>
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, color: COLORS.muted }}>Nombre de séries</span>
               <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: Math.max(1, ex.setCount - 1) })}>−</button>
@@ -200,10 +206,13 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
                     placeholder="Max" type="number" value={ex.targetMax}
                     onChange={(e) => updateExAt(i, { targetMax: e.target.value })}
                   />
+                  <span style={{ fontSize: 10, color: COLORS.muted }}>{ex.mode === "time" ? "sec" : "reps"}</span>
                   <button style={styles.iconBtn} onClick={() => clearTarget(i)}><X size={12} /></button>
                 </div>
               ) : (
-                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, i)}>+ Objectif de reps</button>
+                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, i)}>
+                  + Objectif de {ex.mode === "time" ? "temps" : "reps"}
+                </button>
               )}
             </div>
           </div>

@@ -2,7 +2,7 @@ import { supabase } from "../supabaseClient";
 
 const PRESET_SELECT = `
   id, creator_id, name, created_at,
-  preset_exercises ( id, exercise_name, position, set_count, rest_seconds, target_reps_min, target_reps_max )
+  preset_exercises ( id, exercise_name, position, set_count, mode, rest_seconds, target_reps_min, target_reps_max )
 `;
 
 function shapePreset(row) {
@@ -14,7 +14,7 @@ function shapePreset(row) {
     exercises: [...row.preset_exercises]
       .sort((a, b) => a.position - b.position)
       .map((e) => ({
-        name: e.exercise_name, setCount: e.set_count,
+        name: e.exercise_name, setCount: e.set_count, mode: e.mode || "reps",
         restSeconds: e.rest_seconds, targetMin: e.target_reps_min, targetMax: e.target_reps_max,
       })),
   };
@@ -26,7 +26,7 @@ export async function getPresets() {
   return data.map(shapePreset);
 }
 
-// exercises : [{ name, setCount, restSeconds, targetMin, targetMax }]
+// exercises : [{ name, setCount, mode, restSeconds, targetMin, targetMax }]
 export async function createPreset(name, exercises, creatorId) {
   const { data: preset, error } = await supabase
     .from("session_presets")
@@ -51,6 +51,7 @@ async function writePresetExercises(presetId, exercises) {
     const hasTarget = ex.targetMin !== "" && ex.targetMin != null && ex.targetMax !== "" && ex.targetMax != null;
     return {
       preset_id: presetId, exercise_name: ex.name, position: i, set_count: Math.max(1, Number(ex.setCount) || 1),
+      mode: ex.mode === "time" ? "time" : "reps",
       rest_seconds: ex.restSeconds !== "" && ex.restSeconds != null ? Number(ex.restSeconds) : null,
       target_reps_min: hasTarget ? Number(ex.targetMin) : null,
       target_reps_max: hasTarget ? Number(ex.targetMax) : null,
