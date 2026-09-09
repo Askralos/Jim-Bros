@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Dumbbell } from "lucide-react";
 import { styles } from "./lib/styles";
 import { COLORS } from "./lib/constants";
@@ -15,10 +15,19 @@ import { Home } from "./components/Home";
 import { CalendarView } from "./components/CalendarView";
 import { NewSession } from "./components/NewSession";
 import { SessionModal } from "./components/SessionModal";
-import { ProfileScreen } from "./components/ProfileScreen";
 import { Friends } from "./components/Friends";
-import { ExercisesLibrary } from "./components/ExercisesLibrary";
 import { Leaderboard } from "./components/Leaderboard";
+
+// Chargées à la demande : ce sont les deux seuls écrans qui importent recharts,
+// pas besoin d'alourdir le chargement initial (Home/Calendrier/Log) avec ce poids.
+const ProfileScreen = lazy(() => import("./components/ProfileScreen").then((m) => ({ default: m.ProfileScreen })));
+const ExercisesLibrary = lazy(() => import("./components/ExercisesLibrary").then((m) => ({ default: m.ExercisesLibrary })));
+
+const LazyFallback = () => (
+  <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
+    <Dumbbell size={22} color={COLORS.muted} />
+  </div>
+);
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -105,15 +114,17 @@ export default function App() {
         )}
 
         {view === "profile" && (
-          <ProfileScreen
-            currentUserId={userId} profile={profile} entries={entries} sessions={sessions}
-            prs={prsByUser[userId] || []} exerciseList={exercises}
-            onSave={async (partial) => { await updateProfile(userId, partial); await refresh(); }}
-            onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refresh(); }}
-            onDeletePr={async (id) => { await deletePR(id); await refresh(); }}
-            onOpenSession={setModalSessionId}
-            onRefresh={refresh}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <ProfileScreen
+              currentUserId={userId} profile={profile} entries={entries} sessions={sessions}
+              prs={prsByUser[userId] || []} exerciseList={exercises}
+              onSave={async (partial) => { await updateProfile(userId, partial); await refresh(); }}
+              onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refresh(); }}
+              onDeletePr={async (id) => { await deletePR(id); await refresh(); }}
+              onOpenSession={setModalSessionId}
+              onRefresh={refresh}
+            />
+          </Suspense>
         )}
 
         {view === "friends" && (
@@ -121,13 +132,15 @@ export default function App() {
         )}
 
         {view === "exercises" && (
-          <ExercisesLibrary
-            exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
-            entries={entries} sessions={sessions}
-            onCreatePreset={handleCreatePreset}
-            onUpdatePreset={handleUpdatePreset}
-            onDeletePreset={handleDeletePreset}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <ExercisesLibrary
+              exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
+              entries={entries} sessions={sessions}
+              onCreatePreset={handleCreatePreset}
+              onUpdatePreset={handleUpdatePreset}
+              onDeletePreset={handleDeletePreset}
+            />
+          </Suspense>
         )}
 
         {view === "leaderboard" && (

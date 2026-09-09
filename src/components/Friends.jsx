@@ -4,7 +4,7 @@ import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { fmtDate, computeProfileInsights } from "../lib/utils";
 import { Avatar } from "./Avatar";
-import { MetricCard } from "./ProfileScreen";
+import { MetricCard } from "./MetricCard";
 
 export function Friends({ currentUserId, profiles, entries, sessions, prsByUser, onOpenSession }) {
   const others = Object.values(profiles);

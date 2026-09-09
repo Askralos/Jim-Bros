@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getAllProfiles, getAllPRs } from "../lib/api/profiles";
 import { getSessions } from "../lib/api/sessions";
@@ -39,28 +39,38 @@ export function useAppData(userId) {
     }
   }, []);
 
+  // Une écriture (ex: créer une séance) déclenche plusieurs events Realtime d'un
+  // coup (sessions + entry_exercises + entry_sets...). On les regroupe pour ne
+  // faire qu'un seul refresh (5 requêtes) au lieu d'un par event.
+  const refreshTimer = useRef(null);
+  const scheduleRefresh = useCallback(() => {
+    clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(refresh, 300);
+  }, [refresh]);
+
   useEffect(() => {
     if (!userId) return;
     refresh();
 
     const channel = supabase
       .channel("iron-squad-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "session_participants" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "session_entries" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "entry_exercises" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "entry_sets" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "exercises" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "personal_records" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "session_presets" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "preset_exercises" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "session_participants" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "session_entries" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "entry_exercises" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "entry_sets" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "exercises" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "personal_records" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "session_presets" }, scheduleRefresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "preset_exercises" }, scheduleRefresh)
       .subscribe();
 
     return () => {
+      clearTimeout(refreshTimer.current);
       supabase.removeChannel(channel);
     };
-  }, [userId, refresh]);
+  }, [userId, refresh, scheduleRefresh]);
 
   // Aplati session.entries en un tableau plat {sessionId, userId, exercises, photo, submittedAt},
   // pratique pour les calculs transverses (profil, amis, classement).

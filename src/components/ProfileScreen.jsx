@@ -5,6 +5,7 @@ import { styles } from "../lib/styles";
 import { COLORS, MEASUREMENT_TYPES } from "../lib/constants";
 import { fmtDate, todayKey, computeProfileInsights } from "../lib/utils";
 import { Avatar } from "./Avatar";
+import { MetricCard } from "./MetricCard";
 import { uploadPhoto } from "../lib/api/storage";
 import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
 
@@ -276,15 +277,6 @@ function FieldNum({ label, value, onChange }) {
     <div style={{ flex: 1 }}>
       <label style={styles.label}>{label}</label>
       <input style={{ ...styles.input, marginBottom: 0 }} type="number" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
-    </div>
-  );
-}
-
-export function MetricCard({ label, value }) {
-  return (
-    <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: "10px 12px", flex: "1 1 100px" }}>
-      <div style={{ fontSize: 11, color: COLORS.muted, marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 700 }}>{value}</div>
     </div>
   );
 }
