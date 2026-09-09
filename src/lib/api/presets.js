@@ -2,7 +2,7 @@ import { supabase } from "../supabaseClient";
 
 const PRESET_SELECT = `
   id, creator_id, name, created_at,
-  preset_exercises ( id, exercise_name, position, set_count )
+  preset_exercises ( id, exercise_name, position, set_count, rest_seconds, target_reps_min, target_reps_max )
 `;
 
 function shapePreset(row) {
@@ -13,7 +13,10 @@ function shapePreset(row) {
     createdAt: row.created_at,
     exercises: [...row.preset_exercises]
       .sort((a, b) => a.position - b.position)
-      .map((e) => ({ name: e.exercise_name, setCount: e.set_count })),
+      .map((e) => ({
+        name: e.exercise_name, setCount: e.set_count,
+        restSeconds: e.rest_seconds, targetMin: e.target_reps_min, targetMax: e.target_reps_max,
+      })),
   };
 }
 
@@ -23,7 +26,7 @@ export async function getPresets() {
   return data.map(shapePreset);
 }
 
-// exercises : [{ name, setCount }]
+// exercises : [{ name, setCount, restSeconds, targetMin, targetMax }]
 export async function createPreset(name, exercises, creatorId) {
   const { data: preset, error } = await supabase
     .from("session_presets")
@@ -44,9 +47,15 @@ export async function updatePreset(presetId, name, exercises) {
 
 async function writePresetExercises(presetId, exercises) {
   if (!exercises.length) return;
-  const rows = exercises.map((ex, i) => ({
-    preset_id: presetId, exercise_name: ex.name, position: i, set_count: Math.max(1, Number(ex.setCount) || 1),
-  }));
+  const rows = exercises.map((ex, i) => {
+    const hasTarget = ex.targetMin !== "" && ex.targetMin != null && ex.targetMax !== "" && ex.targetMax != null;
+    return {
+      preset_id: presetId, exercise_name: ex.name, position: i, set_count: Math.max(1, Number(ex.setCount) || 1),
+      rest_seconds: ex.restSeconds !== "" && ex.restSeconds != null ? Number(ex.restSeconds) : null,
+      target_reps_min: hasTarget ? Number(ex.targetMin) : null,
+      target_reps_max: hasTarget ? Number(ex.targetMax) : null,
+    };
+  });
   const { error } = await supabase.from("preset_exercises").insert(rows);
   if (error) throw error;
 }

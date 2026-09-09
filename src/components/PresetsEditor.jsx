@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { X, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { ExercisePicker } from "./ExercisePicker";
 
-const emptyPresetExercise = () => ({ name: "", setCount: 3 });
+const emptyPresetExercise = () => ({ name: "", setCount: 3, restSeconds: "", targetMin: "", targetMax: "" });
 
 function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
   return (
@@ -19,12 +19,23 @@ function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDe
         {expanded && (
           <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
             {preset.exercises.length === 0 && <li style={{ fontSize: 12, color: COLORS.muted }}>Vide</li>}
-            {preset.exercises.map((e, i) => (
-              <li key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px" }}>
-                <span>{e.name}</span>
-                <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}</span>
-              </li>
-            ))}
+            {preset.exercises.map((e, i) => {
+              const hasTarget = e.targetMin != null && e.targetMax != null;
+              return (
+                <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>{e.name}</span>
+                    <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}</span>
+                  </div>
+                  {(hasTarget || e.restSeconds != null) && (
+                    <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 11, color: COLORS.muted }}>
+                      {hasTarget && <span>obj. {e.targetMin}-{e.targetMax} reps</span>}
+                      {e.restSeconds != null && <span>repos {e.restSeconds}s</span>}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -63,12 +74,23 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const [exercises, setExercises] = useState([emptyPresetExercise()]);
   const [pickerFor, setPickerFor] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [revealRest, setRevealRest] = useState(() => new Set());
+  const [revealTarget, setRevealTarget] = useState(() => new Set());
 
   const openCreate = () => { setEditing("new"); setName(""); setExercises([emptyPresetExercise()]); };
   const openEdit = (preset) => {
     setEditing(preset.id);
     setName(preset.name);
-    setExercises(preset.exercises.length ? preset.exercises.map((e) => ({ ...e })) : [emptyPresetExercise()]);
+    setExercises(
+      preset.exercises.length
+        ? preset.exercises.map((e) => ({
+            ...e,
+            restSeconds: e.restSeconds ?? "",
+            targetMin: e.targetMin ?? "",
+            targetMax: e.targetMax ?? "",
+          }))
+        : [emptyPresetExercise()]
+    );
   };
   const close = () => setEditing(null);
 
@@ -85,11 +107,20 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
     return arr;
   });
 
+  const toggleReveal = (setter, i) => setter((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
+  const clearRest = (i) => { updateExAt(i, { restSeconds: "" }); toggleReveal(setRevealRest, i); };
+  const clearTarget = (i) => { updateExAt(i, { targetMin: "", targetMax: "" }); toggleReveal(setRevealTarget, i); };
+
   const valid = !!name.trim() && exercises.some((e) => e.name);
 
   const submit = async () => {
     if (!valid) return;
-    const clean = exercises.filter((e) => e.name).map((e) => ({ name: e.name, setCount: Math.max(1, Number(e.setCount) || 1) }));
+    const clean = exercises
+      .filter((e) => e.name)
+      .map((e) => ({
+        name: e.name, setCount: Math.max(1, Number(e.setCount) || 1),
+        restSeconds: e.restSeconds, targetMin: e.targetMin, targetMax: e.targetMax,
+      }));
     if (editing === "new") await onCreate(name.trim(), clean);
     else await onUpdate(editing, name.trim(), clean);
     close();
@@ -138,6 +169,42 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
               <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: Math.max(1, ex.setCount - 1) })}>−</button>
               <span style={{ fontSize: 14, fontWeight: 700, minWidth: 16, textAlign: "center" }}>{ex.setCount}</span>
               <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: ex.setCount + 1 })}>+</button>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+              {revealRest.has(i) || ex.restSeconds !== "" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Clock size={12} color={COLORS.muted} />
+                  <input
+                    style={{ ...styles.setInput, width: 60, padding: "6px 8px" }}
+                    placeholder="Repos (s)" type="number" value={ex.restSeconds}
+                    onChange={(e) => updateExAt(i, { restSeconds: e.target.value })}
+                  />
+                  <button style={styles.iconBtn} onClick={() => clearRest(i)}><X size={12} /></button>
+                </div>
+              ) : (
+                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealRest, i)}>+ Temps de repos</button>
+              )}
+
+              {revealTarget.has(i) || ex.targetMin !== "" || ex.targetMax !== "" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Target size={12} color={COLORS.muted} />
+                  <input
+                    style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                    placeholder="Min" type="number" value={ex.targetMin}
+                    onChange={(e) => updateExAt(i, { targetMin: e.target.value })}
+                  />
+                  <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
+                  <input
+                    style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+                    placeholder="Max" type="number" value={ex.targetMax}
+                    onChange={(e) => updateExAt(i, { targetMax: e.target.value })}
+                  />
+                  <button style={styles.iconBtn} onClick={() => clearTarget(i)}><X size={12} /></button>
+                </div>
+              ) : (
+                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, i)}>+ Objectif de reps</button>
+              )}
             </div>
           </div>
         ))}
