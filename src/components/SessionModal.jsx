@@ -362,23 +362,30 @@ export function SessionModal({
                   {entry ? (
                     <>
                       {entry.exercises.map((ex, i) => (
-                        <div key={i} style={{ marginBottom: 10 }}>
+                        <div key={i} style={{ marginBottom: 18 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                             {ex.sets.map((s, j) => <SetChip key={j} index={j} s={s} />)}
                           </div>
                         </div>
                       ))}
-                      {entry.feeling && (
-                        <span
-                          style={{
-                            display: "inline-block", fontSize: 11, fontWeight: 700, color: COLORS.lime,
-                            background: "rgba(201,245,66,0.12)", border: "1px solid rgba(201,245,66,0.35)",
-                            borderRadius: 20, padding: "3px 10px", marginTop: 4,
-                          }}
-                        >
-                          {feelingLabel(entry.feeling)}
-                        </span>
+                      {(entry.feeling || mine) && (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                          {entry.feeling ? (
+                            <span
+                              style={{
+                                display: "inline-block", fontSize: 11, fontWeight: 700, color: COLORS.lime,
+                                background: "rgba(201,245,66,0.12)", border: "1px solid rgba(201,245,66,0.35)",
+                                borderRadius: 20, padding: "3px 10px",
+                              }}
+                            >
+                              {feelingLabel(entry.feeling)}
+                            </span>
+                          ) : <span />}
+                          {mine && (
+                            <button style={styles.linkBtn} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
+                          )}
+                        </div>
                       )}
                       {entry.comment && (
                         <p
@@ -394,9 +401,6 @@ export function SessionModal({
                   ) : mine ? (
                     <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
                   ) : null}
-                  {mine && entry && (
-                    <button style={{ ...styles.linkBtn, marginTop: 6 }} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
-                  )}
                 </>
               )}
             </div>
