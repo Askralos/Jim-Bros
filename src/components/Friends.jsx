@@ -1,21 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { fmtDate, computeProfileInsights } from "../lib/utils";
+import { getUserHistory } from "../lib/api/sessions";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
 
-export function Friends({ currentUserId, profiles, entries, sessions, prsByUser, onOpenSession }) {
+export function Friends({ currentUserId, profiles, sessionShells, prsByUser, onOpenSession }) {
   const others = Object.values(profiles);
 
-  const together = (id) => sessions.filter((s) => s.entries?.[currentUserId] && s.entries?.[id]).length;
-  const countFor = (id) => sessions.filter((s) => s.entries?.[id]).length;
-
-  const sessionById = useMemo(() => { const m = {}; sessions.forEach((s) => (m[s.id] = s)); return m; }, [sessions]);
+  const together = (id) => sessionShells.filter((s) => s.entryUserIds.includes(currentUserId) && s.entryUserIds.includes(id)).length;
+  const countFor = (id) => sessionShells.filter((s) => s.entryUserIds.includes(id)).length;
   const lastSeanceDate = (id) => {
-    const mine = entries.filter((e) => e.userId === id).map((e) => sessionById[e.sessionId]?.date).filter(Boolean).sort();
-    return mine.length ? mine[mine.length - 1] : null;
+    const mine = sessionShells.filter((s) => s.entryUserIds.includes(id)).map((s) => s.date);
+    return mine.length ? mine[0] : null; // sessionShells est déjà trié date desc
   };
 
   const [sortBy, setSortBy] = useState("together");
@@ -66,8 +65,7 @@ export function Friends({ currentUserId, profiles, entries, sessions, prsByUser,
 
       {openFriend && (
         <FriendProfileModal
-          userId={openFriend} profile={profiles[openFriend]}
-          entries={entries} sessions={sessions} prs={prsByUser[openFriend] || []}
+          userId={openFriend} profile={profiles[openFriend]} prs={prsByUser[openFriend] || []}
           onClose={() => setOpenFriend(null)}
           onOpenSession={(id) => { setOpenFriend(null); onOpenSession(id); }}
         />
@@ -76,8 +74,14 @@ export function Friends({ currentUserId, profiles, entries, sessions, prsByUser,
   );
 }
 
-function FriendProfileModal({ userId, profile, entries, sessions, prs, onClose, onOpenSession }) {
-  const { myEntries, bestProgress } = useMemo(() => computeProfileInsights(userId, entries, sessions), [entries, sessions, userId]);
+function FriendProfileModal({ userId, profile, prs, onClose, onOpenSession }) {
+  const [history, setHistory] = useState(null); // null = en cours de chargement
+  useEffect(() => { setHistory(null); getUserHistory(userId).then(setHistory); }, [userId]);
+
+  const { myEntries, bestProgress } = useMemo(
+    () => (history ? computeProfileInsights(userId, history.entries, history.sessions) : { myEntries: [], bestProgress: null }),
+    [history, userId]
+  );
   const hasMeasurements = profile.arm_cm || profile.chest_cm || profile.waist_cm || profile.thigh_cm;
 
   return (
@@ -96,7 +100,7 @@ function FriendProfileModal({ userId, profile, entries, sessions, prs, onClose, 
 
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <MetricCard label="Poids" value={profile.weight_kg ? `${profile.weight_kg} kg` : "—"} />
-          <MetricCard label="Séances" value={myEntries.length} />
+          <MetricCard label="Séances" value={history ? myEntries.length : "…"} />
           <MetricCard label="Meilleure progression" value={bestProgress ? `${bestProgress.name} +${bestProgress.delta}kg` : "—"} />
         </div>
 
@@ -124,15 +128,16 @@ function FriendProfileModal({ userId, profile, entries, sessions, prs, onClose, 
           </>
         )}
 
-        <h2 style={styles.sectionTitle}>Historique ({myEntries.length})</h2>
+        <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {myEntries.slice(0, 15).map((e) => (
+          {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+          {history && myEntries.slice(0, 15).map((e) => (
             <div key={e.sessionId} style={styles.historyRow} onClick={() => onOpenSession(e.sessionId)}>
               <span style={{ fontSize: 13 }}>{e.session.title || e.exercises.map((x) => x.name).join(", ")}</span>
               <span style={{ fontSize: 11, color: COLORS.muted }}>{fmtDate(e.session.date)}</span>
             </div>
           ))}
-          {myEntries.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore de séance postée.</p>}
+          {history && myEntries.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore de séance postée.</p>}
         </div>
       </div>
     </div>

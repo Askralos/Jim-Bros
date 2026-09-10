@@ -8,8 +8,9 @@ import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
 import { uploadPhoto } from "../lib/api/storage";
 import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
+import { getUserHistory } from "../lib/api/sessions";
 
-export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, exerciseList, onSave, onAddPr, onDeletePr, onOpenSession, onRefresh }) {
+export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSave, onAddPr, onDeletePr, onOpenSession, onRefresh }) {
   const [form, setForm] = useState(profile);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [openMeasurement, setOpenMeasurement] = useState(null); // clé du type ouvert (arm/chest/waist/thigh)
@@ -17,6 +18,7 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
   const [weightHistory, setWeightHistory] = useState([]);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(profile.display_name);
+  const [history, setHistory] = useState(null); // tout l'historique perso, chargé à part (pas la fenêtre paginée)
   const fileRef = useRef(null);
   const avatarGalleryRef = useRef(null);
 
@@ -25,9 +27,13 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
   }, [currentUserId]);
 
   useEffect(() => { loadWeightHistory(); }, [loadWeightHistory]);
+  useEffect(() => { getUserHistory(currentUserId).then(setHistory); }, [currentUserId]);
   useEffect(() => { setForm(profile); }, [profile.weight_kg, profile.body_fat_pct, profile.objectif, profile.avatar_url, profile.arm_cm, profile.chest_cm, profile.waist_cm, profile.thigh_cm]);
 
-  const { myEntries, bestProgress } = useMemo(() => computeProfileInsights(currentUserId, entries, sessions), [entries, sessions, currentUserId]);
+  const { myEntries, bestProgress } = useMemo(
+    () => (history ? computeProfileInsights(currentUserId, history.entries, history.sessions) : { myEntries: [], bestProgress: null }),
+    [history, currentUserId]
+  );
 
   const handleAvatar = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -124,15 +130,16 @@ export function ProfileScreen({ currentUserId, profile, entries, sessions, prs, 
       <h2 style={styles.sectionTitle}>Progression</h2>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         <MetricCard label="Poids" value={startWeight && currentWeight && startWeight !== currentWeight ? `${startWeight} → ${currentWeight} kg` : (currentWeight ? `${currentWeight} kg` : "—")} />
-        <MetricCard label="Séances" value={myEntries.length} />
+        <MetricCard label="Séances" value={history ? myEntries.length : "…"} />
         <MetricCard label="Meilleure progression" value={bestProgress ? `${bestProgress.name} +${bestProgress.delta}kg` : "—"} />
       </div>
 
       <PrSection prs={prs} exerciseList={exerciseList} onAdd={onAddPr} onDelete={onDeletePr} />
 
-      <h2 style={styles.sectionTitle}>Historique ({myEntries.length})</h2>
+      <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {myEntries.map((e) => (
+        {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+        {history && myEntries.map((e) => (
           <div key={e.sessionId} style={styles.historyRow} onClick={() => onOpenSession(e.sessionId)}>
             <span style={{ fontSize: 13 }}>{e.session.title || e.exercises.map((x) => x.name).join(", ")}</span>
             <span style={{ fontSize: 11, color: COLORS.muted }}>{fmtDate(e.session.date)}</span>

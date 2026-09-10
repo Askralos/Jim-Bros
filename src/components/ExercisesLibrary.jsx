@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Camera, Dumbbell, X, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
@@ -6,6 +6,7 @@ import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constant
 import { exerciseSetHistoryByName, fmtDate } from "../lib/utils";
 import { uploadPhoto } from "../lib/api/storage";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
+import { getUserHistory } from "../lib/api/sessions";
 import { useExerciseFilter, ExerciseFilterBar, TagBadges } from "./ExercisePicker";
 import { PresetsEditor } from "./PresetsEditor";
 
@@ -52,17 +53,25 @@ function ExerciseChart({ points, metric, onMetricChange }) {
 
 // Sous-onglet "Suivi" : liste des exercices déjà pratiqués (en reps) par le user,
 // avec un mini-graphique par exercice filtrable poids/reps. Toutes les séries sont
-// affichées (pas seulement la meilleure de chaque séance).
-function ExerciseTrackingTab({ entries, sessions, currentUserId }) {
-  const history = useMemo(() => exerciseSetHistoryByName(entries, sessions, currentUserId), [entries, sessions, currentUserId]);
+// affichées (pas seulement la meilleure de chaque séance) — tout l'historique est
+// chargé à part (pas la fenêtre paginée du fil de séances).
+function ExerciseTrackingTab({ currentUserId }) {
+  const [userHistory, setUserHistory] = useState(null);
+  useEffect(() => { getUserHistory(currentUserId).then(setUserHistory); }, [currentUserId]);
+
+  const history = useMemo(
+    () => (userHistory ? exerciseSetHistoryByName(userHistory.entries, userHistory.sessions, currentUserId) : {}),
+    [userHistory, currentUserId]
+  );
   const names = Object.keys(history).sort((a, b) => a.localeCompare(b, "fr"));
   const [expanded, setExpanded] = useState(null);
   const [metric, setMetric] = useState("weight");
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Suivi ({names.length})</h2>
-      {names.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore d'exercice en répétitions enregistré.</p>}
+      <h2 style={styles.sectionTitle}>Suivi {userHistory ? `(${names.length})` : ""}</h2>
+      {!userHistory && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+      {userHistory && names.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore d'exercice en répétitions enregistré.</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {names.map((name) => {
           const points = history[name];
@@ -164,7 +173,7 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   );
 }
 
-export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset, entries, sessions }) {
+export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset }) {
   const [tab, setTab] = useState("library");
   const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
   const [formTarget, setFormTarget] = useState(null); // "new" = création, sinon l'exercice édité, null = fermé
@@ -191,7 +200,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
           onCreate={onCreatePreset} onUpdate={onUpdatePreset} onDelete={onDeletePreset}
         />
       ) : tab === "tracking" ? (
-        <ExerciseTrackingTab entries={entries} sessions={sessions} currentUserId={currentUserId} />
+        <ExerciseTrackingTab currentUserId={currentUserId} />
       ) : (
         <>
           <h2 style={styles.sectionTitle}>Exercices ({exerciseList.length})</h2>

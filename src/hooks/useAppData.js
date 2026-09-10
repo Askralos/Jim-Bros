@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getAllProfiles, getAllPRs } from "../lib/api/profiles";
-import { getSessions } from "../lib/api/sessions";
+import { getSessions, getSessionShells, getSessionCountsByUser, SESSIONS_PAGE_SIZE } from "../lib/api/sessions";
 import { getExercises } from "../lib/api/exercises";
 import { getPresets } from "../lib/api/presets";
 
@@ -11,37 +11,75 @@ import { getPresets } from "../lib/api/presets";
 // -> Pense à activer "Realtime" sur les tables sessions, session_entries,
 //    entry_exercises, entry_sets, exercises, personal_records, profiles
 //    (Supabase Dashboard > Database > Replication).
+//
+// Le fil des séances (avec le détail complet exercices/séries de tout le monde)
+// est paginé : seules les SESSIONS_PAGE_SIZE plus récentes sont chargées par
+// défaut, et loadMoreSessions() permet d'aller chercher les plus anciennes à la
+// demande (ex: le calendrier qui remonte dans le temps). Les écrans qui ont besoin
+// de TOUT l'historique (classement, liste d'amis) utilisent sessionShells, une
+// version allégée sans exercices/séries, bien moins coûteuse sur tout l'historique.
 export function useAppData(userId) {
   const [profiles, setProfiles] = useState({});
   const [sessions, setSessions] = useState([]);
+  const [hasMoreSessions, setHasMoreSessions] = useState(true);
+  const [sessionShells, setSessionShells] = useState([]);
+  const [sessionCounts, setSessionCounts] = useState({});
   const [exercises, setExercises] = useState([]);
   const [prs, setPrs] = useState([]);
   const [presets, setPresets] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Combien de séances doit-on recharger au prochain refresh() : au moins la
+  // taille d'une page, mais plus si loadMoreSessions() a déjà étendu la fenêtre
+  // (sinon un refresh déclenché par Realtime ferait "oublier" les séances plus
+  // anciennes déjà chargées, ex: pendant qu'on navigue dans un vieux mois du calendrier).
+  const loadedCountRef = useRef(SESSIONS_PAGE_SIZE);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [profilesMap, sessionsList, exercisesList, prsList, presetsList] = await Promise.all([
+      const [profilesMap, sessionsPage, shells, exercisesList, prsList, presetsList, counts] = await Promise.all([
         getAllProfiles(),
-        getSessions(),
+        getSessions({ limit: loadedCountRef.current }),
+        getSessionShells(),
         getExercises(),
         getAllPRs(),
         getPresets(),
+        getSessionCountsByUser(),
       ]);
       setProfiles(profilesMap);
-      setSessions(sessionsList);
+      setSessions(sessionsPage.sessions);
+      setHasMoreSessions(sessionsPage.hasMore);
+      setSessionShells(shells);
       setExercises(exercisesList);
       setPrs(prsList);
       setPresets(presetsList);
+      setSessionCounts(counts);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const loadingMoreRef = useRef(false);
+  const loadMoreSessions = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreSessions || sessions.length === 0) return;
+    loadingMoreRef.current = true;
+    try {
+      const last = sessions[sessions.length - 1];
+      const { sessions: more, hasMore } = await getSessions({
+        before: { date: last.date, createdAt: new Date(last.createdAt).toISOString() },
+      });
+      loadedCountRef.current += more.length;
+      setSessions((prev) => [...prev, ...more]);
+      setHasMoreSessions(hasMore);
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [hasMoreSessions, sessions]);
+
   // Une écriture (ex: créer une séance) déclenche plusieurs events Realtime d'un
   // coup (sessions + entry_exercises + entry_sets...). On les regroupe pour ne
-  // faire qu'un seul refresh (5 requêtes) au lieu d'un par event.
+  // faire qu'un seul refresh (7 requêtes) au lieu d'un par event.
   const refreshTimer = useRef(null);
   const scheduleRefresh = useCallback(() => {
     clearTimeout(refreshTimer.current);
@@ -73,7 +111,8 @@ export function useAppData(userId) {
   }, [userId, refresh, scheduleRefresh]);
 
   // Aplati session.entries en un tableau plat {sessionId, userId, exercises, photo, submittedAt},
-  // pratique pour les calculs transverses (profil, amis, classement).
+  // pratique pour les calculs transverses sur la fenêtre chargée (comparaison de
+  // séances passées, volume du feed...).
   const entries = useMemo(() => {
     const flat = [];
     sessions.forEach((s) => {
@@ -91,5 +130,9 @@ export function useAppData(userId) {
     return map;
   }, [entries]);
 
-  return { profiles, sessions, exercises, prs, presets, entries, entriesBySession, loading, refresh };
+  return {
+    profiles, sessions, hasMoreSessions, loadMoreSessions,
+    sessionShells, sessionCounts,
+    exercises, prs, presets, entries, entriesBySession, loading, refresh,
+  };
 }

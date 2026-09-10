@@ -1,17 +1,27 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { todayKey, fmtDate } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
-export function CalendarView({ sessions, profiles, currentUserId, onOpenSession, onBack }) {
+export function CalendarView({ sessions, hasMoreSessions, onLoadMoreSessions, profiles, currentUserId, onOpenSession, onBack }) {
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const sessionsByDay = useMemo(() => {
     const map = {};
     sessions.forEach((s) => { map[s.date] = map[s.date] || []; map[s.date].push(s); });
     return map;
   }, [sessions]);
+
+  // Le fil de séances est paginé (les plus récentes d'abord) : dès qu'on navigue
+  // vers un mois plus ancien que la plus vieille séance déjà chargée, on va
+  // chercher la page suivante pour que ce mois s'affiche correctement.
+  useEffect(() => {
+    if (!hasMoreSessions || !sessions.length) return;
+    const oldestLoadedDate = sessions[sessions.length - 1].date;
+    const monthStartKey = todayKey(new Date(month.getFullYear(), month.getMonth(), 1));
+    if (monthStartKey < oldestLoadedDate) onLoadMoreSessions?.();
+  }, [month, hasMoreSessions, sessions, onLoadMoreSessions]);
 
   const cells = useMemo(() => {
     const start = new Date(month);

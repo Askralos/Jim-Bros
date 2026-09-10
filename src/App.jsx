@@ -4,7 +4,7 @@ import { styles } from "./lib/styles";
 import { COLORS } from "./lib/constants";
 import { getSession, onAuthStateChange } from "./lib/api/auth";
 import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
-import { createSession, editSession, deleteSession, writeEntry, deleteEntry } from "./lib/api/sessions";
+import { createSession, editSession, deleteSession, writeEntry, deleteEntry, getSessionById } from "./lib/api/sessions";
 import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
 import { presetToExercises } from "./lib/utils";
 import { useAppData } from "./hooks/useAppData";
@@ -44,7 +44,10 @@ export default function App() {
   }, []);
 
   const userId = authSession?.user?.id || null;
-  const { profiles, sessions, exercises, prs, presets, entries, entriesBySession, loading, refresh } = useAppData(userId);
+  const {
+    profiles, sessions, hasMoreSessions, loadMoreSessions, sessionShells, sessionCounts,
+    exercises, prs, presets, entries, loading, refresh,
+  } = useAppData(userId);
 
   const prsByUser = useMemo(() => {
     const map = {};
@@ -53,7 +56,16 @@ export default function App() {
   }, [prs]);
 
   const otherProfiles = useMemo(() => Object.values(profiles).filter((p) => p.id !== userId), [profiles, userId]);
-  const modalSession = modalSessionId ? sessions.find((s) => s.id === modalSessionId) : null;
+
+  // La séance ouverte peut être hors de la fenêtre paginée (ex: ouverte depuis
+  // l'historique complet d'un profil) : dans ce cas on va la chercher directement.
+  const [fetchedModalSession, setFetchedModalSession] = useState(null);
+  const modalSessionInWindow = modalSessionId ? sessions.find((s) => s.id === modalSessionId) : null;
+  useEffect(() => {
+    if (!modalSessionId || modalSessionInWindow) { setFetchedModalSession(null); return; }
+    getSessionById(modalSessionId).then(setFetchedModalSession);
+  }, [modalSessionId, modalSessionInWindow]);
+  const modalSession = modalSessionInWindow || (fetchedModalSession?.id === modalSessionId ? fetchedModalSession : null);
 
   const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refresh(); };
   const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); };
@@ -96,7 +108,10 @@ export default function App() {
         )}
 
         {view === "calendar" && (
-          <CalendarView sessions={sessions} profiles={profiles} currentUserId={userId} onOpenSession={setModalSessionId} onBack={() => setView("home")} />
+          <CalendarView
+            sessions={sessions} hasMoreSessions={hasMoreSessions} onLoadMoreSessions={loadMoreSessions}
+            profiles={profiles} currentUserId={userId} onOpenSession={setModalSessionId} onBack={() => setView("home")}
+          />
         )}
 
         {view === "log" && (
@@ -116,7 +131,7 @@ export default function App() {
         {view === "profile" && (
           <Suspense fallback={<LazyFallback />}>
             <ProfileScreen
-              currentUserId={userId} profile={profile} entries={entries} sessions={sessions}
+              currentUserId={userId} profile={profile}
               prs={prsByUser[userId] || []} exerciseList={exercises}
               onSave={async (partial) => { await updateProfile(userId, partial); await refresh(); }}
               onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refresh(); }}
@@ -128,14 +143,13 @@ export default function App() {
         )}
 
         {view === "friends" && (
-          <Friends currentUserId={userId} profiles={profiles} entries={entries} sessions={sessions} prsByUser={prsByUser} onOpenSession={setModalSessionId} />
+          <Friends currentUserId={userId} profiles={profiles} sessionShells={sessionShells} prsByUser={prsByUser} onOpenSession={setModalSessionId} />
         )}
 
         {view === "exercises" && (
           <Suspense fallback={<LazyFallback />}>
             <ExercisesLibrary
               exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
-              entries={entries} sessions={sessions}
               onCreatePreset={handleCreatePreset}
               onUpdatePreset={handleUpdatePreset}
               onDeletePreset={handleDeletePreset}
@@ -144,7 +158,10 @@ export default function App() {
         )}
 
         {view === "leaderboard" && (
-          <Leaderboard profiles={profiles} entries={entries} sessions={sessions} currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser} />
+          <Leaderboard
+            profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells} sessionCounts={sessionCounts}
+            currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser}
+          />
         )}
       </div>
       <BottomNav view={view} setView={setView} onNewSession={() => setShowNewSessionChooser(true)} />

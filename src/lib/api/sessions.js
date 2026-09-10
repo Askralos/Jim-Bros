@@ -12,25 +12,30 @@ const SESSION_SELECT = `
   )
 `;
 
+// Un exercice + ses séries, dans la forme attendue par les composants (utilisé
+// aussi bien pour une séance complète que pour l'historique d'un seul user).
+function shapeExercises(entryExercisesRows) {
+  return [...(entryExercisesRows || [])]
+    .sort((a, b) => a.position - b.position)
+    .map((ex) => ({
+      name: ex.exercise_name,
+      sets: [...ex.entry_sets]
+        .sort((a, b) => a.position - b.position)
+        .map((s) => ({
+          reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds,
+          restSeconds: s.rest_seconds, targetMin: s.target_reps_min, targetMax: s.target_reps_max,
+        })),
+    }));
+}
+
 // Transforme la réponse imbriquée de Supabase en la forme que les composants
 // attendent : session.participants = [uuid...], session.entries = { [uuid]: {...} }.
 function shapeSession(row) {
   const participants = [...new Set([row.creator_id, ...row.session_participants.map((p) => p.user_id)])];
   const entries = {};
   (row.session_entries || []).forEach((e) => {
-    const exercises = [...e.entry_exercises]
-      .sort((a, b) => a.position - b.position)
-      .map((ex) => ({
-        name: ex.exercise_name,
-        sets: [...ex.entry_sets]
-          .sort((a, b) => a.position - b.position)
-          .map((s) => ({
-            reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds,
-            restSeconds: s.rest_seconds, targetMin: s.target_reps_min, targetMax: s.target_reps_max,
-          })),
-      }));
     entries[e.user_id] = {
-      entryId: e.id, exercises, photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
+      entryId: e.id, exercises: shapeExercises(e.entry_exercises), photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
       feeling: e.feeling || null, comment: e.comment || null,
     };
   });
@@ -47,14 +52,79 @@ function shapeSession(row) {
   };
 }
 
-export async function getSessions() {
-  const { data, error } = await supabase
+export const SESSIONS_PAGE_SIZE = 60;
+
+// Fil des séances, paginé (les plus récentes d'abord) : `before` reprend le
+// curseur { date, createdAt } de la dernière séance déjà chargée pour aller
+// chercher les suivantes. hasMore indique s'il reste des séances plus anciennes.
+export async function getSessions({ limit = SESSIONS_PAGE_SIZE, before } = {}) {
+  let query = supabase
     .from("sessions")
     .select(SESSION_SELECT)
     .order("date", { ascending: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (before) {
+    query = query.or(`date.lt.${before.date},and(date.eq.${before.date},created_at.lt.${before.createdAt})`);
+  }
+  const { data, error } = await query;
   if (error) throw error;
-  return data.map(shapeSession);
+  return { sessions: data.map(shapeSession), hasMore: data.length === limit };
+}
+
+// Version très légère (pas d'exercices/séries) de TOUTES les séances, pour les
+// écrans qui n'ont besoin que de savoir qui a posté quand (classement, liste
+// d'amis) sans payer le coût du détail complet sur tout l'historique.
+export async function getSessionShells() {
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("id, creator_id, date, session_participants ( user_id ), session_entries ( user_id )")
+    .order("date", { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.id,
+    date: row.date,
+    creator: row.creator_id,
+    participants: [...new Set([row.creator_id, ...row.session_participants.map((p) => p.user_id)])],
+    entryUserIds: row.session_entries.map((e) => e.user_id),
+  }));
+}
+
+// Historique complet (toutes séances confondues) d'un seul user, pour les écrans
+// qui ont besoin de tout son passif (progression, suivi par exercice) sans avoir
+// à charger le détail de TOUT le monde sur TOUTES les séances comme getSessions().
+export async function getUserHistory(userId) {
+  const { data, error } = await supabase
+    .from("session_entries")
+    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position ) )")
+    .eq("user_id", userId);
+  if (error) throw error;
+  const sessions = [];
+  const entries = data
+    .filter((row) => row.sessions)
+    .map((row) => {
+      sessions.push({ id: row.sessions.id, date: row.sessions.date, title: row.sessions.title });
+      return { userId, sessionId: row.session_id, bodyweightKg: row.bodyweight_kg, exercises: shapeExercises(row.entry_exercises) };
+    });
+  return { entries, sessions };
+}
+
+// Séance unique, avec le détail complet de tous les participants (fallback pour
+// ouvrir une séance qui n'est pas dans la page actuellement chargée par getSessions).
+export async function getSessionById(sessionId) {
+  const { data, error } = await supabase.from("sessions").select(SESSION_SELECT).eq("id", sessionId).single();
+  if (error) throw error;
+  return shapeSession(data);
+}
+
+// Nombre total de séances (toutes dates confondues) où chaque user a posté ses
+// stats — sert au ratio "séances/semaine" du classement, sans charger le détail.
+export async function getSessionCountsByUser() {
+  const { data, error } = await supabase.from("session_entries").select("user_id");
+  if (error) throw error;
+  const counts = {};
+  data.forEach((r) => { counts[r.user_id] = (counts[r.user_id] || 0) + 1; });
+  return counts;
 }
 
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).

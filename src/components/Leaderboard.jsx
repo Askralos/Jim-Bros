@@ -4,7 +4,7 @@ import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { todayKey, norm, volumeOf, computeStreak } from "../lib/utils";
 
-export function Leaderboard({ profiles, entries, sessions, currentUserId, exerciseList, prsByUser }) {
+export function Leaderboard({ profiles, entries, sessions, sessionShells, sessionCounts, currentUserId, exerciseList, prsByUser }) {
   const [metric, setMetric] = useState("ratio");
   const [prQuery, setPrQuery] = useState("");
   const sessionById = useMemo(() => { const m = {}; sessions.forEach((s) => (m[s.id] = s)); return m; }, [sessions]);
@@ -12,17 +12,23 @@ export function Leaderboard({ profiles, entries, sessions, currentUserId, exerci
   const now = new Date();
   const startOfMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
+  // Streak : tout l'historique (via sessionShells, léger) car computeStreak ne
+  // regarde de toute façon que la queue récente des dates.
   const streakFor = (userId) => {
-    const dates = [...new Set(entries.filter((e) => e.userId === userId).map((e) => sessionById[e.sessionId]?.date).filter(Boolean))].sort().reverse();
+    const dates = sessionShells.filter((s) => s.entryUserIds.includes(userId)).map((s) => s.date); // déjà trié date desc
     return computeStreak(dates);
   };
 
   const rows = Object.values(profiles).map((p) => {
+    // Volume du mois : dérivé de la fenêtre récente chargée (entries/sessions,
+    // paginés), largement suffisante puisqu'on ne regarde que le mois en cours.
     const mine = entries.filter((e) => e.userId === p.id).map((e) => ({ ...e, session: sessionById[e.sessionId] })).filter((e) => e.session);
     const weeksSinceJoin = Math.max(1, (Date.now() - new Date(p.created_at).getTime()) / (7 * 24 * 3600 * 1000));
     return {
       userId: p.id, displayName: p.display_name,
-      ratio: mine.length / weeksSinceJoin,
+      // Ratio séances/semaine : sur tout l'historique (sessionCounts, une requête
+      // légère à part), pas juste la fenêtre paginée.
+      ratio: (sessionCounts[p.id] || 0) / weeksSinceJoin,
       volume: mine.filter((e) => e.session.date >= startOfMonthKey).reduce((t, e) => t + volumeOf(e.exercises), 0),
       streak: streakFor(p.id),
     };
