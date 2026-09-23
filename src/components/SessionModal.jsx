@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, fmtTime, presetToExercises } from "../lib/utils";
+import { fmtDate, fmtTime, fmtDuration, presetToExercises } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { PresetsEditor } from "./PresetsEditor";
@@ -337,7 +337,7 @@ export function SessionModal({
           {session.createdAt && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
               <Clock size={13} />
-              Publiée à {fmtTime(session.createdAt)}{session.durationMin ? ` · ${session.durationMin} min` : ""}
+              Publiée à {fmtTime(session.createdAt)}{session.durationMin ? ` · ${fmtDuration(session.durationMin)}` : ""}
             </span>
           )}
         </div>

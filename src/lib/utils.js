@@ -8,6 +8,15 @@ export const fmtDate = (key) => {
 // Heure de création (session.createdAt, un timestamp ms) au format "14:32".
 export const fmtTime = (ms) => new Date(ms).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
+// Durée d'une séance (minutes) au format "1h30" (ou juste "45min" sous l'heure) —
+// plus lisible d'un coup d'œil qu'un nombre brut de minutes.
+export function fmtDuration(min) {
+  const m = Number(min) || 0;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return h === 0 ? `${rest}min` : `${h}h${String(rest).padStart(2, "0")}`;
+}
+
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");

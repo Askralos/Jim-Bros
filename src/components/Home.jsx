@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Camera, ChevronRight, Dumbbell } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
-import { todayKey, fmtDate, volumeOf } from "../lib/utils";
+import { todayKey, fmtDate, fmtDuration, volumeOf } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
 export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSession, onSeeCalendar }) {
@@ -136,7 +136,7 @@ export function SessionFeedCard({ session, profiles, onClick }) {
         <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginTop: 4 }}>{session.title || "Séance"}</span>
         <span style={{ fontSize: 12, color: COLORS.muted }}>
           {Object.keys(session.entries).length}/{participants.length} ont posté leurs stats · {submittedVolume.toLocaleString("fr-FR")} kg
-          {session.durationMin ? ` · ${session.durationMin} min` : ""}
+          {session.durationMin ? ` · ${fmtDuration(session.durationMin)}` : ""}
         </span>
       </div>
     </div>
