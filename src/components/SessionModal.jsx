@@ -5,6 +5,7 @@ import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate, fmtTime, fmtDuration, presetToExercises } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
+import { DurationInput } from "./DurationInput";
 import { PresetsEditor } from "./PresetsEditor";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
@@ -268,7 +269,7 @@ export function SessionModal({
           <input style={styles.input} placeholder="Titre" value={editMeta.title} onChange={(e) => setEditMeta({ ...editMeta, title: e.target.value })} />
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={editMeta.date} onChange={(e) => setEditMeta({ ...editMeta, date: e.target.value })} />
-            <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} placeholder="Durée (min)" type="number" value={editMeta.durationMin} onChange={(e) => setEditMeta({ ...editMeta, durationMin: e.target.value })} />
+            <DurationInput valueMin={editMeta.durationMin} onChange={(v) => setEditMeta({ ...editMeta, durationMin: v })} />
           </div>
 
           {otherProfiles.length > 0 && (

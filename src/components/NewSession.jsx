@@ -4,6 +4,7 @@ import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS } from "../lib/constants";
 import { todayKey, fmtDate, formatSet } from "../lib/utils";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
+import { DurationInput } from "./DurationInput";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
@@ -145,7 +146,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
       {touched && !title.trim() && <p style={{ color: COLORS.flame, fontSize: 12, marginTop: -6, marginBottom: 8 }}>Titre requis</p>}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} placeholder="Durée (min)" type="number" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
+        <DurationInput valueMin={durationMin} onChange={setDurationMin} />
       </div>
 
       <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
