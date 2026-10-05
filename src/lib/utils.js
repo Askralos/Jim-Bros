@@ -78,6 +78,30 @@ export function chainExercises(list, i, newItems) {
   return normalizeSupersets(next);
 }
 
+// Ordre du fil : date décroissante, puis heure de publication décroissante.
+const sessionOrder = (a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1);
+
+// Fusionne des séances rechargées individuellement (temps réel) dans la liste
+// paginée déjà affichée :
+// - une séance demandée mais non renvoyée a été supprimée → retirée ;
+// - une séance existante est remplacée par sa nouvelle version ;
+// - une nouvelle séance est ajoutée à sa place, sauf si elle est plus ancienne que
+//   la page chargée alors qu'il reste des pages (elle arrivera avec "charger plus",
+//   et l'ajouter maintenant fausserait le curseur de pagination).
+export function mergeSessions(prev, fetched, requestedIds, { hasMore }) {
+  const byId = new Map(fetched.map((s) => [s.id, s]));
+  const requested = new Set(requestedIds);
+  const oldest = prev[prev.length - 1];
+  const next = prev.filter((s) => !requested.has(s.id) || byId.has(s.id)).map((s) => byId.get(s.id) || s);
+  const known = new Set(prev.map((s) => s.id));
+  fetched.forEach((s) => {
+    if (known.has(s.id)) return;
+    if (hasMore && oldest && sessionOrder(s, oldest) > 0) return;
+    next.push(s);
+  });
+  return next.sort(sessionOrder);
+}
+
 // Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
 // - external : la charge saisie telle quelle
 // - bodyweight : le poids du corps figé sur l'entrée (snapshot au moment de la saisie)

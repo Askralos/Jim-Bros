@@ -120,6 +120,15 @@ export async function getSessionById(sessionId) {
   return shapeSession(data);
 }
 
+// Plusieurs séances par id, pour ne recharger que celles qui ont changé (temps
+// réel). Une séance supprimée n'est simplement pas renvoyée.
+export async function getSessionsByIds(ids) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from("sessions").select(SESSION_SELECT).in("id", ids);
+  if (error) throw error;
+  return data.map(shapeSession);
+}
+
 // Nombre total de séances (toutes dates confondues) où chaque user a posté ses
 // stats — sert au ratio "séances/semaine" du classement, sans charger le détail.
 export async function getSessionCountsByUser() {
@@ -219,7 +228,9 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
 
   const { error: delErr } = await supabase.from("entry_exercises").delete().eq("entry_id", entry.id);
   if (delErr) throw delErr;
-  if (!exercises.length) return entry.id;
+  // Signal temps réel final (voir plus bas), émis une fois tout le reste écrit.
+  const touchEntry = () => supabase.from("session_entries").update({ submitted_at: new Date().toISOString() }).eq("id", entry.id);
+  if (!exercises.length) { await touchEntry(); return entry.id; }
 
   // Deux inserts multi-lignes au lieu d'un aller-retour par exercice : sur une séance à
   // 5-6 exercices ça divise par ~5 le nombre de requêtes réseau (c'était la cause
@@ -259,6 +270,10 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
     const { error: setErr } = await supabase.from("entry_sets").insert(allSets);
     if (setErr) throw setErr;
   }
+  // Dernière écriture = l'entrée elle-même : les autres appareils (temps réel) ne
+  // suivent que session_entries, et ce signal arrive une fois exercices et séries
+  // déjà enregistrés, donc ils rechargent la séance complète.
+  await touchEntry();
   return entry.id;
 }
 

@@ -10,6 +10,7 @@ import {
   groupSupersets,
   normalizeSupersets,
   chainExercises,
+  mergeSessions,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -166,5 +167,31 @@ describe("chainExercises", () => {
   it("ajoute à la fin d'un superset existant", () => {
     const out = chainExercises([ex("Dips", 1), ex("Tractions", 1), ex("Squat")], 0, [ex("Pompes")]);
     expect(names(out)).toEqual(["Dips:1", "Tractions:1", "Pompes:1", "Squat:-"]);
+  });
+});
+
+describe("mergeSessions (rafraîchissement ciblé)", () => {
+  const S = (id, date, createdAt = 0, title = id) => ({ id, date, createdAt, title });
+  const prev = [S("c", "2026-10-03"), S("b", "2026-10-02"), S("a", "2026-10-01")];
+  const ids = (l) => l.map((s) => s.id);
+
+  it("remplace une séance modifiée", () => {
+    const out = mergeSessions(prev, [S("b", "2026-10-02", 0, "nouveau")], ["b"], { hasMore: false });
+    expect(ids(out)).toEqual(["c", "b", "a"]);
+    expect(out[1].title).toBe("nouveau");
+  });
+
+  it("retire une séance supprimée", () => {
+    expect(ids(mergeSessions(prev, [], ["b"], { hasMore: false }))).toEqual(["c", "a"]);
+  });
+
+  it("insère une nouvelle séance à sa place", () => {
+    expect(ids(mergeSessions(prev, [S("d", "2026-10-04")], ["d"], { hasMore: true }))).toEqual(["d", "c", "b", "a"]);
+    expect(ids(mergeSessions(prev, [S("e", "2026-10-02", 5)], ["e"], { hasMore: true }))).toEqual(["c", "e", "b", "a"]);
+  });
+
+  it("ignore une nouvelle séance plus ancienne que la page s'il reste des pages", () => {
+    expect(ids(mergeSessions(prev, [S("z", "2026-09-01")], ["z"], { hasMore: true }))).toEqual(["c", "b", "a"]);
+    expect(ids(mergeSessions(prev, [S("z", "2026-09-01")], ["z"], { hasMore: false }))).toEqual(["c", "b", "a", "z"]);
   });
 });

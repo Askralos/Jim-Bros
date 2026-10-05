@@ -46,7 +46,7 @@ export default function App() {
   const userId = authSession?.user?.id || null;
   const {
     profiles, sessions, hasMoreSessions, loadMoreSessions, sessionShells, sessionCounts,
-    exercises, prs, presets, entries, loading, refresh,
+    exercises, prs, presets, entries, loading, refreshSessions, refreshData,
   } = useAppData(userId);
 
   const prsByUser = useMemo(() => {
@@ -67,9 +67,9 @@ export default function App() {
   }, [modalSessionId, modalSessionInWindow]);
   const modalSession = modalSessionInWindow || (fetchedModalSession?.id === modalSessionId ? fetchedModalSession : null);
 
-  const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refresh(); };
-  const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refresh(); };
-  const handleDeletePreset = async (id) => { await deletePreset(id); await refresh(); };
+  const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refreshData("presets"); };
+  const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refreshData("presets"); };
+  const handleDeletePreset = async (id) => { await deletePreset(id); await refreshData("presets"); };
 
   if (booting) {
     return (
@@ -121,8 +121,8 @@ export default function App() {
             currentUserId={userId} otherProfiles={otherProfiles} exerciseList={exercises} sessions={sessions}
             initialExercises={newSessionExercises}
             onSubmit={async (payload, ownExercises) => {
-              await createSession(payload, userId, ownExercises);
-              await refresh();
+              const newId = await createSession(payload, userId, ownExercises);
+              await refreshSessions([newId]);
               setNewSessionExercises(null);
               setView("home");
             }}
@@ -135,11 +135,11 @@ export default function App() {
             <ProfileScreen
               currentUserId={userId} profile={profile}
               prs={prsByUser[userId] || []} exerciseList={exercises}
-              onSave={async (partial) => { await updateProfile(userId, partial); await refresh(); }}
-              onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refresh(); }}
-              onDeletePr={async (id) => { await deletePR(id); await refresh(); }}
+              onSave={async (partial) => { await updateProfile(userId, partial); await refreshData("profiles"); }}
+              onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refreshData("prs"); }}
+              onDeletePr={async (id) => { await deletePR(id); await refreshData("prs"); }}
               onOpenSession={setModalSessionId}
-              onRefresh={refresh}
+              onRefresh={() => refreshData("profiles")}
             />
           </Suspense>
         )}
@@ -153,7 +153,7 @@ export default function App() {
         {view === "exercises" && (
           <Suspense fallback={<LazyFallback />}>
             <ExercisesLibrary
-              exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={refresh} presets={presets}
+              exerciseList={exercises} currentUserId={userId} currentUsername={profile.username} profiles={profiles} onRefresh={() => refreshData("exercises")} presets={presets}
               onCreatePreset={handleCreatePreset}
               onUpdatePreset={handleUpdatePreset}
               onDeletePreset={handleDeletePreset}
@@ -193,10 +193,10 @@ export default function App() {
           onUpdatePreset={handleUpdatePreset}
           onDeletePreset={handleDeletePreset}
           onClose={() => setModalSessionId(null)}
-          onSubmitEntry={async (ex, bodyweightKg, feeling, comment) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment); await refresh(); }}
-          onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refresh(); }}
-          onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refresh(); }}
-          onDeleteSession={async () => { await deleteSession(modalSession.id); setModalSessionId(null); await refresh(); }}
+          onSubmitEntry={async (ex, bodyweightKg, feeling, comment) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment); await refreshSessions([modalSession.id]); }}
+          onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refreshSessions([modalSession.id]); }}
+          onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refreshSessions([modalSession.id]); }}
+          onDeleteSession={async () => { const id = modalSession.id; await deleteSession(id); setModalSessionId(null); await refreshSessions([id]); }}
         />
       )}
     </div>
