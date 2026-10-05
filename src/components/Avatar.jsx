@@ -16,12 +16,18 @@ export function Avatar({ profile, size = 34 }) {
   );
 }
 
-export function AvatarStack({ userIds, profiles, size = 28 }) {
+// Les invités (sans compte) apparaissent après les membres, en pastille à l'initiale
+// avec un contour pointillé pour les distinguer.
+export function AvatarStack({ userIds, profiles, guests = [], size = 28 }) {
+  const people = [
+    ...userIds.map((id) => ({ key: id, profile: profiles[id] })),
+    ...guests.map((g, i) => ({ key: `guest-${i}`, profile: { display_name: g }, guest: true })),
+  ].slice(0, 5);
   return (
     <div style={{ display: "flex" }}>
-      {userIds.slice(0, 5).map((id, i) => (
-        <div key={id} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: 5 - i }}>
-          <Avatar profile={profiles[id]} size={size} />
+      {people.map((p, i) => (
+        <div key={p.key} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: 5 - i, ...(p.guest ? { borderRadius: "50%", outline: `1px dashed ${COLORS.muted}` } : {}) }}>
+          <Avatar profile={p.profile} size={size} />
         </div>
       ))}
     </div>

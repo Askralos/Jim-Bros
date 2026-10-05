@@ -9,6 +9,7 @@ import {
   todayKey,
   groupSupersets,
   normalizeSupersets,
+  chainExercises,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -145,5 +146,25 @@ describe("presetToExercises avec supersets", () => {
     const out = presetToExercises(preset);
     expect(out.map((e) => e.supersetGroup)).toEqual([1, 1, null]);
     expect(groupSupersets(out).map((b) => b.items.length)).toEqual([2, 1]);
+  });
+});
+
+describe("chainExercises", () => {
+  const ex = (name, supersetGroup = null) => ({ name, supersetGroup });
+  const names = (list) => list.map((e) => `${e.name}:${e.supersetGroup ?? "-"}`);
+
+  it("remplace une carte vide par le superset choisi", () => {
+    const out = chainExercises([ex("Squat"), ex("")], 1, [ex("Dips"), ex("Tractions")]);
+    expect(names(out)).toEqual(["Squat:-", "Dips:1", "Tractions:1"]);
+  });
+
+  it("transforme un exercice déjà choisi en superset", () => {
+    const out = chainExercises([ex("Dips"), ex("Squat")], 0, [ex("Tractions")]);
+    expect(names(out)).toEqual(["Dips:1", "Tractions:1", "Squat:-"]);
+  });
+
+  it("ajoute à la fin d'un superset existant", () => {
+    const out = chainExercises([ex("Dips", 1), ex("Tractions", 1), ex("Squat")], 0, [ex("Pompes")]);
+    expect(names(out)).toEqual(["Dips:1", "Tractions:1", "Pompes:1", "Squat:-"]);
   });
 });

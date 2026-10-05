@@ -5,6 +5,7 @@ import { COLORS, SESSION_FEELINGS } from "../lib/constants";
 import { todayKey, fmtDate, formatSet } from "../lib/utils";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
+import { GuestPills } from "./GuestPicker";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
@@ -75,6 +76,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
   const [photo, setPhoto] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [participants, setParticipants] = useState([]);
+  const [guests, setGuests] = useState([]);
   const [exercises, setExercises] = useState(() => (initialExercises?.length ? initialExercises : [emptyExercise()]));
   const [bodyweightKg, setBodyweightKg] = useState("");
   const [touched, setTouched] = useState(false);
@@ -114,6 +116,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
           feeling,
           comment: comment.trim() || null,
           participantIds: participants,
+          guestNames: guests,
           bodyweightKg: bodyweightKg !== "" ? Number(bodyweightKg) : null,
         },
         clean
@@ -174,18 +177,15 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
         onChange={(e) => setComment(e.target.value)}
       />
 
-      {otherProfiles.length > 0 && (
-        <>
-          <label style={styles.label}>Fait avec (optionnel)</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {otherProfiles.map((p) => (
-              <button key={p.id} onClick={() => togglePart(p.id)} style={{ ...styles.tabPill, ...(participants.includes(p.id) ? styles.tabPillActive : {}) }}>
-                {p.display_name}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <label style={styles.label}>Fait avec (optionnel)</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, alignItems: "center" }}>
+        {otherProfiles.map((p) => (
+          <button key={p.id} onClick={() => togglePart(p.id)} style={{ ...styles.tabPill, ...(participants.includes(p.id) ? styles.tabPillActive : {}) }}>
+            {p.display_name}
+          </button>
+        ))}
+        <GuestPills guests={guests} onChange={setGuests} />
+      </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
         <span style={styles.label}>Tes exercices</span>

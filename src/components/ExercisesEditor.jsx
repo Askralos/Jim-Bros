@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Clock, Target, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, WEIGHT_TYPES } from "../lib/constants";
-import { groupSupersets, normalizeSupersets } from "../lib/utils";
+import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
 import { ExercisePicker, ExerciseRowThumb } from "./ExercisePicker";
 
 export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "" };
@@ -21,10 +21,10 @@ export function cleanExercises(exercises) {
   );
 }
 
-const isBlankExercise = (ex) => !ex.name && ex.sets.every((s) => !s.reps && !s.seconds && !s.weight);
-
 export function ExercisesEditor({ exercises, onChange, exerciseList }) {
-  const [pickerFor, setPickerFor] = useState(null); // index de la carte en cours de sélection, ou "superset"
+  // null = fermé ; un index = choix simple pour cette carte ; { chainAt: i } = choix
+  // multiple d'exercices à enchaîner avec la carte i (superset).
+  const [pickerFor, setPickerFor] = useState(null);
   // "i-j" révélés manuellement (les champs remplis via duplication de série restent
   // visibles sans passer par ici, voir showRest/showTarget ci-dessous).
   const [revealRest, setRevealRest] = useState(() => new Set());
@@ -36,11 +36,8 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
     onChange(next);
   };
   const addExercise = () => onChange([...exercises, emptyExercise()]);
-  const addSuperset = (picked) => {
-    const group = Date.now();
-    const kept = exercises.filter((ex) => !isBlankExercise(ex));
-    onChange([...kept, ...picked.map((e) => ({ name: e.name, supersetGroup: group, sets: [{ ...EMPTY_SET }] }))]);
-  };
+  const chainAt = (i, picked) =>
+    onChange(chainExercises(exercises, i, picked.map((e) => ({ name: e.name, supersetGroup: null, sets: [{ ...EMPTY_SET }] }))));
   // Un superset réduit à un seul exercice redevient un exercice classique.
   const removeExercise = (i) => onChange(normalizeSupersets(exercises.filter((_, idx) => idx !== i)));
   const ungroup = (group) => onChange(exercises.map((ex) => (ex.supersetGroup === group ? { ...ex, supersetGroup: null } : ex)));
@@ -90,9 +87,19 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
               <ExerciseRowThumb exercise={exerciseList.find((e) => e.name === ex.name) || {}} size={30} />
               <span style={{ fontSize: 14, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
               <button style={styles.linkBtn} onClick={() => setPickerFor(i)}>Changer</button>
+              {!inSuperset && (
+                <button style={{ ...styles.linkBtn, display: "inline-flex", alignItems: "center", gap: 3 }} onClick={() => setPickerFor({ chainAt: i })}>
+                  <Link2 size={12} />Superset
+                </button>
+              )}
             </div>
           ) : (
-            <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
+            <div style={{ display: "flex", gap: 6, flex: 1 }}>
+              <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
+              <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor({ chainAt: i })}>
+                <Link2 size={14} style={{ marginRight: 6 }} />Superset
+              </button>
+            </div>
           )}
           {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExercise(i)}><X size={15} /></button>}
         </div>
@@ -190,27 +197,27 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingLeft: 2 }}>
               <Link2 size={14} color={COLORS.lime} />
               <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.lime, flex: 1 }}>Superset · {block.items.length} exercices</span>
-              <button style={styles.linkBtn} onClick={() => addRound(block.group)}>+ tour</button>
+              <button style={styles.linkBtn} onClick={() => setPickerFor({ chainAt: block.items[0].index })}>+ exo</button>
+              <button style={{ ...styles.linkBtn, marginLeft: 8 }} onClick={() => addRound(block.group)}>+ tour</button>
               <button style={{ ...styles.linkBtn, color: COLORS.muted, marginLeft: 8 }} onClick={() => ungroup(block.group)}>Dissocier</button>
             </div>
             {block.items.map(({ ex, index }) => renderExercise(ex, index, true))}
           </div>
         );
       })}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button style={styles.secondaryBtn} onClick={addExercise}>+ Exercice</button>
-        <button style={styles.secondaryBtn} onClick={() => setPickerFor("superset")}><Link2 size={14} style={{ marginRight: 6 }} />Superset</button>
-      </div>
+      <button style={styles.secondaryBtn} onClick={addExercise}>+ Ajouter un exercice</button>
 
-      {pickerFor === "superset" && (
+      {pickerFor?.chainAt != null && (
         <ExercisePicker
           multi
+          minSelect={exercises[pickerFor.chainAt]?.name ? 1 : 2}
+          title={exercises[pickerFor.chainAt]?.name ? `Enchaîner avec ${exercises[pickerFor.chainAt].name}` : undefined}
           exerciseList={exerciseList}
           onClose={() => setPickerFor(null)}
-          onConfirmMulti={(picked) => { addSuperset(picked); setPickerFor(null); }}
+          onConfirmMulti={(picked) => { chainAt(pickerFor.chainAt, picked); setPickerFor(null); }}
         />
       )}
-      {pickerFor !== null && pickerFor !== "superset" && (
+      {typeof pickerFor === "number" && (
         <ExercisePicker
           exerciseList={exerciseList}
           onClose={() => setPickerFor(null)}

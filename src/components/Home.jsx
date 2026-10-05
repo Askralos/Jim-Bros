@@ -130,7 +130,7 @@ export function SessionFeedCard({ session, profiles, onClick }) {
       )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <AvatarStack userIds={participants} profiles={profiles} size={22} />
+          <AvatarStack userIds={participants} guests={session.guests} profiles={profiles} size={22} />
           <span style={{ fontSize: 11, color: COLORS.muted }}>{fmtDate(session.date)}</span>
         </div>
         <span style={{ fontSize: 13, fontWeight: 600, display: "block", marginTop: 4 }}>{session.title || "Séance"}</span>

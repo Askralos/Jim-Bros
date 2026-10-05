@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
-import { groupSupersets, normalizeSupersets } from "../lib/utils";
+import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
 import { ExercisePicker } from "./ExercisePicker";
 
 const emptyPresetExercise = () => ({ name: "", setCount: 3, mode: "reps", restSeconds: "", targetMin: "", targetMax: "", supersetGroup: null });
@@ -103,13 +103,8 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   // Un superset réduit à un seul exercice redevient un exercice classique.
   const removeExAt = (i) => setExercises((xs) => normalizeSupersets(xs.filter((_, idx) => idx !== i)));
   const addEx = () => setExercises((xs) => [...xs, emptyPresetExercise()]);
-  const addSuperset = (picked) => {
-    const group = Date.now();
-    setExercises((xs) => [
-      ...xs.filter((x) => x.name),
-      ...picked.map((e) => ({ ...emptyPresetExercise(), name: e.name, supersetGroup: group })),
-    ]);
-  };
+  const chainAt = (i, picked) =>
+    setExercises((xs) => chainExercises(xs, i, picked.map((e) => ({ ...emptyPresetExercise(), name: e.name }))));
   const ungroup = (group) => setExercises((xs) => xs.map((x) => (x.supersetGroup === group ? { ...x, supersetGroup: null } : x)));
 
   // Réordonne sans supprimer/recréer. Dans un superset, on permute avec le voisin du
@@ -165,9 +160,19 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
         {ex.name ? (
           <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
         ) : (
-          <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
+          <div style={{ display: "flex", gap: 6, flex: 1 }}>
+            <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
+            <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor({ chainAt: i })}>
+              <Link2 size={14} style={{ marginRight: 6 }} />Superset
+            </button>
+          </div>
         )}
         {ex.name && <button style={styles.linkBtn} onClick={() => setPickerFor(i)}>Changer</button>}
+        {ex.name && !inSuperset && (
+          <button style={{ ...styles.linkBtn, display: "inline-flex", alignItems: "center", gap: 3 }} onClick={() => setPickerFor({ chainAt: i })}>
+            <Link2 size={12} />Superset
+          </button>
+        )}
         {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExAt(i)}><X size={15} /></button>}
         {exercises.length > 1 && (
           <div style={{ display: "flex", flexDirection: "column" }}>
@@ -248,31 +253,31 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingLeft: 2 }}>
                 <Link2 size={14} color={COLORS.lime} />
                 <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.lime, flex: 1 }}>Superset · {block.items.length} exercices</span>
-                <button style={{ ...styles.linkBtn, color: COLORS.muted }} onClick={() => ungroup(block.group)}>Dissocier</button>
+                <button style={styles.linkBtn} onClick={() => setPickerFor({ chainAt: block.items[0].index })}>+ exo</button>
+                <button style={{ ...styles.linkBtn, color: COLORS.muted, marginLeft: 8 }} onClick={() => ungroup(block.group)}>Dissocier</button>
               </div>
               {block.items.map(({ ex, index }) => renderPresetEx(ex, index, true))}
             </div>
           );
         })}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={styles.secondaryBtn} onClick={addEx}>+ Exercice</button>
-          <button style={styles.secondaryBtn} onClick={() => setPickerFor("superset")}><Link2 size={14} style={{ marginRight: 6 }} />Superset</button>
-        </div>
+        <button style={styles.secondaryBtn} onClick={addEx}>+ Ajouter un exercice</button>
 
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={close}>Annuler</button>
           <button style={{ ...styles.primaryBtn, flex: 1 }} disabled={!valid} onClick={submit}>Enregistrer</button>
         </div>
 
-        {pickerFor === "superset" && (
+        {pickerFor?.chainAt != null && (
           <ExercisePicker
             multi
+            minSelect={exercises[pickerFor.chainAt]?.name ? 1 : 2}
+            title={exercises[pickerFor.chainAt]?.name ? `Enchaîner avec ${exercises[pickerFor.chainAt].name}` : undefined}
             exerciseList={exerciseList}
             onClose={() => setPickerFor(null)}
-            onConfirmMulti={(picked) => { addSuperset(picked); setPickerFor(null); }}
+            onConfirmMulti={(picked) => { chainAt(pickerFor.chainAt, picked); setPickerFor(null); }}
           />
         )}
-        {pickerFor !== null && pickerFor !== "superset" && (
+        {typeof pickerFor === "number" && (
           <ExercisePicker
             exerciseList={exerciseList}
             onClose={() => setPickerFor(null)}

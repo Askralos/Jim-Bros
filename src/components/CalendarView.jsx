@@ -91,7 +91,7 @@ export function CalendarView({ sessions, hasMoreSessions, onLoadMoreSessions, pr
                   {s.photo && <img src={s.photo} alt="" style={{ width: 34, height: 34, borderRadius: 7, objectFit: "cover", flexShrink: 0 }} />}
                   <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || "Séance"}</span>
                 </div>
-                <AvatarStack userIds={s.participants} profiles={profiles} size={22} />
+                <AvatarStack userIds={s.participants} guests={s.guests} profiles={profiles} size={22} />
               </div>
             ))}
           </div>

@@ -6,6 +6,7 @@ import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets } from
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
+import { GuestPills } from "./GuestPicker";
 import { PresetsEditor } from "./PresetsEditor";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
@@ -96,6 +97,7 @@ export function SessionModal({
     title: session.title || "", date: session.date, durationMin: session.durationMin || "",
     photo: session.photo || null,
     participants: session.participants.filter((u) => u !== session.creator),
+    guests: session.guests || [],
   });
   const [uploadingSession, setUploadingSession] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
@@ -272,20 +274,19 @@ export function SessionModal({
             <DurationInput valueMin={editMeta.durationMin} onChange={(v) => setEditMeta({ ...editMeta, durationMin: v })} />
           </div>
 
+          <label style={styles.label}>Fait avec</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, alignItems: "center" }}>
+            {otherProfiles.map((p) => (
+              <button key={p.id} onClick={() => toggleEditParticipant(p.id)} style={{ ...styles.tabPill, ...(editMeta.participants.includes(p.id) ? styles.tabPillActive : {}) }}>
+                {p.display_name}
+              </button>
+            ))}
+            <GuestPills guests={editMeta.guests} onChange={(guests) => setEditMeta((m) => ({ ...m, guests }))} />
+          </div>
           {otherProfiles.length > 0 && (
-            <>
-              <label style={styles.label}>Fait avec</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                {otherProfiles.map((p) => (
-                  <button key={p.id} onClick={() => toggleEditParticipant(p.id)} style={{ ...styles.tabPill, ...(editMeta.participants.includes(p.id) ? styles.tabPillActive : {}) }}>
-                    {p.display_name}
-                  </button>
-                ))}
-              </div>
-              <p style={{ fontSize: 11, color: COLORS.muted, marginTop: -8, marginBottom: 14 }}>
-                Retirer quelqu'un supprime ses stats déjà enregistrées pour cette séance.
-              </p>
-            </>
+            <p style={{ fontSize: 11, color: COLORS.muted, marginTop: -8, marginBottom: 14 }}>
+              Retirer quelqu'un supprime ses stats déjà enregistrées pour cette séance.
+            </p>
           )}
 
           {sessionError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{sessionError}</p>}
@@ -302,7 +303,7 @@ export function SessionModal({
                   title: editMeta.title.trim(), date: editMeta.date,
                   durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
                   photo: editMeta.photo,
-                  participantIds: editMeta.participants, creatorId: session.creator,
+                  participantIds: editMeta.participants, guestNames: editMeta.guests, creatorId: session.creator,
                 });
                 setMode("view");
               } catch (e) {
@@ -342,6 +343,12 @@ export function SessionModal({
             </span>
           )}
         </div>
+
+        {session.guests?.length > 0 && (
+          <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -6, marginBottom: 14 }}>
+            Aussi présent{session.guests.length > 1 ? "s" : ""} (sans compte) : <span style={{ color: COLORS.chalk }}>{session.guests.join(", ")}</span>
+          </p>
+        )}
 
         {participants.map((id) => {
           const entry = session.entries[id];

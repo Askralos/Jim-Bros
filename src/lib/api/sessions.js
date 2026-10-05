@@ -2,7 +2,7 @@ import { supabase } from "../supabaseClient";
 import { normalizeSupersets } from "../utils";
 
 const SESSION_SELECT = `
-  id, creator_id, title, date, duration_min, photo_url, created_at,
+  id, creator_id, title, date, duration_min, photo_url, created_at, guest_names,
   session_participants ( user_id ),
   session_entries (
     id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
@@ -50,6 +50,7 @@ function shapeSession(row) {
     photo: row.photo_url,
     createdAt: new Date(row.created_at).getTime(),
     participants,
+    guests: row.guest_names || [],
     entries,
   };
 }
@@ -132,7 +133,7 @@ export async function getSessionCountsByUser() {
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
 // Le feeling/commentaire est propre au créateur (sa propre entrée), comme pour
 // chaque autre participant.
-export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, bodyweightKg }, creatorId, ownExercises) {
+export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, guestNames = [], bodyweightKg }, creatorId, ownExercises) {
   const { data: session, error } = await supabase
     .from("sessions")
     .insert({
@@ -141,6 +142,7 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
       date,
       duration_min: durationMin,
       photo_url: photo,
+      guest_names: guestNames,
     })
     .select()
     .single();
@@ -157,7 +159,7 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
   return session.id;
 }
 
-export async function editSession(sessionId, { title, date, durationMin, photo, participantIds, creatorId }) {
+export async function editSession(sessionId, { title, date, durationMin, photo, participantIds, guestNames = [], creatorId }) {
   const { error } = await supabase
     .from("sessions")
     .update({
@@ -165,6 +167,7 @@ export async function editSession(sessionId, { title, date, durationMin, photo, 
       date,
       duration_min: durationMin,
       photo_url: photo,
+      guest_names: guestNames,
     })
     .eq("id", sessionId);
   if (error) throw error;

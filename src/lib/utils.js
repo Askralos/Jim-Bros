@@ -61,6 +61,23 @@ export function normalizeSupersets(exercises) {
   });
 }
 
+// Enchaîne `newItems` après l'exercice i pour former (ou agrandir) un superset :
+// - exercice i pas encore choisi (name vide) : il est remplacé par newItems ;
+// - exercice i déjà dans un superset : newItems s'ajoutent à la fin de ce superset ;
+// - sinon : l'exercice i et newItems forment un nouveau superset.
+export function chainExercises(list, i, newItems) {
+  const cur = list[i];
+  const group = cur.supersetGroup ?? Date.now();
+  const tagged = newItems.map((x) => ({ ...x, supersetGroup: group }));
+  if (!cur.name) return normalizeSupersets([...list.slice(0, i), ...tagged, ...list.slice(i + 1)]);
+  let end = i;
+  while (end + 1 < list.length && cur.supersetGroup != null && list[end + 1].supersetGroup === cur.supersetGroup) end++;
+  const next = [...list];
+  next[i] = { ...cur, supersetGroup: group };
+  next.splice(end + 1, 0, ...tagged);
+  return normalizeSupersets(next);
+}
+
 // Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
 // - external : la charge saisie telle quelle
 // - bodyweight : le poids du corps figé sur l'entrée (snapshot au moment de la saisie)
