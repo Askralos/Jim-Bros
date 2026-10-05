@@ -74,29 +74,58 @@ export function ExerciseRowThumb({ exercise, onClick, size = 38 }) {
 
 // Modale de sélection d'exercice : recherche + filtre par tag + liste, remplace la saisie
 // libre (datalist) pour garantir un exercice réellement répertorié.
-export function ExercisePicker({ exerciseList, onSelect, onClose }) {
+// En mode multi (superset), l'ordre des clics donne l'ordre d'enchaînement.
+export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false, onConfirmMulti }) {
   const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
+  const [selected, setSelected] = useState([]);
+
+  const toggleSelected = (ex) => setSelected((s) => (s.includes(ex.id) ? s.filter((id) => id !== ex.id) : [...s, ex.id]));
 
   return (
     <div style={styles.modalBackdrop} onClick={onClose}>
       <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>Choisir un exercice</span>
+          <span style={{ fontWeight: 700 }}>{multi ? "Exercices du superset" : "Choisir un exercice"}</span>
           <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
         </div>
+        {multi && <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -4, marginBottom: 10 }}>Sélectionne au moins 2 exercices, dans l'ordre où tu les enchaînes.</p>}
         <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {filtered.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun exercice ne correspond.</p>}
-          {filtered.map((ex) => (
-            <div key={ex.id} style={{ ...styles.friendRow, cursor: "pointer" }} onClick={() => onSelect(ex)}>
-              <ExerciseRowThumb exercise={ex} />
-              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
-                <TagBadges tags={ex.tags} />
+          {filtered.map((ex) => {
+            const order = selected.indexOf(ex.id);
+            const isSelected = order !== -1;
+            return (
+              <div
+                key={ex.id}
+                style={{ ...styles.friendRow, cursor: "pointer", ...(isSelected ? { borderColor: COLORS.lime } : {}) }}
+                onClick={() => (multi ? toggleSelected(ex) : onSelect(ex))}
+              >
+                <ExerciseRowThumb exercise={ex} />
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                  <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
+                  <TagBadges tags={ex.tags} />
+                </div>
+                {isSelected && (
+                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: COLORS.lime, color: "#111214", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {order + 1}
+                  </span>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+        {multi && (
+          <div style={{ position: "sticky", bottom: -18, background: COLORS.surface, paddingTop: 10, paddingBottom: 18, marginTop: 10 }}>
+            <button
+              style={{ ...styles.primaryBtn, ...(selected.length < 2 ? { opacity: 0.4, cursor: "default" } : {}) }}
+              disabled={selected.length < 2}
+              onClick={() => onConfirmMulti(selected.map((id) => exerciseList.find((e) => e.id === id)))}
+            >
+              Créer le superset{selected.length ? ` (${selected.length})` : ""}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

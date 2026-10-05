@@ -57,7 +57,7 @@ function CompareReference({ session, currentUserId, onChange, onRemove }) {
         </div>
       </div>
       {entry.exercises.map((ex, i) => (
-        <div key={i} style={{ marginBottom: 4 }}>
+        <div key={i} style={{ marginBottom: 4, ...(ex.supersetGroup != null ? { borderLeft: `2px solid ${COLORS.lime}`, paddingLeft: 6 } : {}) }}>
           <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
           <div style={{ fontSize: 12.5, color: COLORS.chalk }}>{ex.sets.map((s) => formatSet(s)).join(", ")}</div>
         </div>

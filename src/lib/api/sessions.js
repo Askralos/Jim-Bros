@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { normalizeSupersets } from "../utils";
 
 const SESSION_SELECT = `
   id, creator_id, title, date, duration_min, photo_url, created_at,
@@ -6,7 +7,7 @@ const SESSION_SELECT = `
   session_entries (
     id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
     entry_exercises (
-      id, exercise_name, position,
+      id, exercise_name, position, superset_group,
       entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position )
     )
   )
@@ -19,6 +20,7 @@ function shapeExercises(entryExercisesRows) {
     .sort((a, b) => a.position - b.position)
     .map((ex) => ({
       name: ex.exercise_name,
+      supersetGroup: ex.superset_group ?? null,
       sets: [...ex.entry_sets]
         .sort((a, b) => a.position - b.position)
         .map((s) => ({
@@ -96,7 +98,7 @@ export async function getSessionShells() {
 export async function getUserHistory(userId) {
   const { data, error } = await supabase
     .from("session_entries")
-    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position ) )")
+    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position ) )")
     .eq("user_id", userId);
   if (error) throw error;
   const sessions = [];
@@ -219,7 +221,8 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
   // Deux inserts multi-lignes au lieu d'un aller-retour par exercice : sur une séance à
   // 5-6 exercices ça divise par ~5 le nombre de requêtes réseau (c'était la cause
   // principale de la lenteur ressentie à la publication).
-  const exerciseRows = exercises.map((ex, i) => ({ entry_id: entry.id, exercise_name: ex.name, position: i }));
+  exercises = normalizeSupersets(exercises);
+  const exerciseRows = exercises.map((ex, i) => ({ entry_id: entry.id, exercise_name: ex.name, position: i, superset_group: ex.supersetGroup }));
   const { data: insertedExercises, error: exErr } = await supabase.from("entry_exercises").insert(exerciseRows).select();
   if (exErr) throw exErr;
 

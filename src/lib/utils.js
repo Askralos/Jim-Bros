@@ -37,6 +37,29 @@ export const presetToExercises = (preset) =>
     })),
   }));
 
+// Supersets : les exercices consécutifs qui partagent le même supersetGroup sont
+// enchaînés. Renvoie des blocs [{ group, items: [{ ex, index }] }] dans l'ordre ; un
+// exercice classique forme un bloc à lui seul (group null).
+export function groupSupersets(exercises) {
+  const blocks = [];
+  exercises.forEach((ex, index) => {
+    const last = blocks[blocks.length - 1];
+    if (ex.supersetGroup != null && last && last.group === ex.supersetGroup) last.items.push({ ex, index });
+    else blocks.push({ group: ex.supersetGroup ?? null, items: [{ ex, index }] });
+  });
+  return blocks;
+}
+
+// Un superset réduit à un seul exercice redevient un exercice classique, et les
+// groupes sont renumérotés 1, 2, 3... (ce qui est stocké en base).
+export function normalizeSupersets(exercises) {
+  let n = 0;
+  return groupSupersets(exercises).flatMap((b) => {
+    const group = b.group != null && b.items.length > 1 ? ++n : null;
+    return b.items.map(({ ex }) => ({ ...ex, supersetGroup: group }));
+  });
+}
+
 // Charge effective d'une série selon son type (voir ExercisesEditor pour l'UI) :
 // - external : la charge saisie telle quelle
 // - bodyweight : le poids du corps figé sur l'entrée (snapshot au moment de la saisie)

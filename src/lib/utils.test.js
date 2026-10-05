@@ -7,6 +7,8 @@ import {
   exerciseSetHistoryByName,
   computeStreak,
   todayKey,
+  groupSupersets,
+  normalizeSupersets,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -107,5 +109,28 @@ describe("computeStreak", () => {
     const today = todayKey();
     const d = (n) => todayKey(new Date(Date.now() - n * 86400000));
     expect(computeStreak([today, d(2), d(10)])).toBe(2);
+  });
+});
+
+describe("supersets", () => {
+  const ex = (name, supersetGroup = null) => ({ name, supersetGroup, sets: [] });
+
+  it("groupSupersets regroupe les exercices consécutifs d'un même groupe", () => {
+    const blocks = groupSupersets([ex("Squat"), ex("Dips", 7), ex("Tractions", 7), ex("Gainage")]);
+    expect(blocks.map((b) => b.items.map((it) => it.ex.name))).toEqual([["Squat"], ["Dips", "Tractions"], ["Gainage"]]);
+    expect(blocks[1].items.map((it) => it.index)).toEqual([1, 2]);
+  });
+
+  it("deux exercices classiques consécutifs restent séparés", () => {
+    expect(groupSupersets([ex("A"), ex("B")])).toHaveLength(2);
+  });
+
+  it("normalizeSupersets renumérote les groupes 1, 2...", () => {
+    const out = normalizeSupersets([ex("A", 1700000000000), ex("B", 1700000000000), ex("C"), ex("D", 42), ex("E", 42)]);
+    expect(out.map((e) => e.supersetGroup)).toEqual([1, 1, null, 2, 2]);
+  });
+
+  it("un superset réduit à un seul exercice redevient classique", () => {
+    expect(normalizeSupersets([ex("A", 5), ex("B")]).map((e) => e.supersetGroup)).toEqual([null, null]);
   });
 });

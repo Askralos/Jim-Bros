@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock } from "lucide-react";
+import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, fmtTime, fmtDuration, presetToExercises } from "../lib/utils";
+import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
@@ -362,14 +362,26 @@ export function SessionModal({
                 <>
                   {entry ? (
                     <>
-                      {entry.exercises.map((ex, i) => (
-                        <div key={i} style={{ marginBottom: 18 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                            {ex.sets.map((s, j) => <SetChip key={j} index={j} s={s} />)}
+                      {groupSupersets(entry.exercises).map((block) => {
+                        const renderEx = ({ ex, index }, inSuperset) => (
+                          <div key={index} style={{ marginBottom: inSuperset ? 10 : 18 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {ex.sets.map((s, j) => <SetChip key={j} index={j} s={s} />)}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                        if (block.group == null || block.items.length < 2) return renderEx(block.items[0], false);
+                        return (
+                          <div key={`superset-${block.items[0].index}`} style={{ borderLeft: `2px solid ${COLORS.lime}`, paddingLeft: 10, marginBottom: 18 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                              <Link2 size={12} color={COLORS.lime} />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.lime, textTransform: "uppercase", letterSpacing: 0.5 }}>Superset</span>
+                            </div>
+                            {block.items.map((item) => renderEx(item, true))}
+                          </div>
+                        );
+                      })}
                       {(entry.feeling || mine) && (
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
                           {entry.feeling ? (
