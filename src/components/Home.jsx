@@ -124,7 +124,7 @@ export function SessionFeedCard({ session, profiles, onClick }) {
   return (
     <div style={styles.feedCard} onClick={onClick}>
       {session.photo ? (
-        <img src={session.photo} alt="" style={styles.feedPhoto} />
+        <img src={session.photo} alt="" loading="lazy" decoding="async" style={styles.feedPhoto} />
       ) : (
         <div style={{ ...styles.feedPhoto, display: "flex", alignItems: "center", justifyContent: "center" }}><Dumbbell size={22} color={COLORS.muted} /></div>
       )}

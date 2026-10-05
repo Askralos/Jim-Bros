@@ -7,7 +7,9 @@ export async function uploadPhoto(file, folder = "misc", { maxW = 480, quality =
   const blob = await compressImageToBlob(file, maxW, quality);
   const path = `${folder}/${uid()}.jpg`;
   const { error } = await supabase.storage.from("photos").upload(path, blob, {
-    cacheControl: "3600",
+    // Chaque photo a un nom unique et n'est jamais réécrite : le navigateur peut la
+    // garder en cache un an au lieu de la retélécharger toutes les heures.
+    cacheControl: "31536000",
     upsert: false,
     contentType: "image/jpeg",
   });

@@ -11,7 +11,7 @@ export function Avatar({ profile, size = 34 }) {
         fontWeight: 700, fontSize: size * 0.4, overflow: "hidden", border: `1px solid ${COLORS.line}`,
       }}
     >
-      {src ? <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
+      {src ? <img src={src} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : initial}
     </div>
   );
 }

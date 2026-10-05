@@ -62,7 +62,7 @@ export function ExerciseRowThumb({ exercise, onClick, size = 38 }) {
   return (
     <div onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       {exercise.photo_url ? (
-        <img src={exercise.photo_url} alt="" style={{ width: size, height: size, borderRadius: 8, objectFit: "cover" }} />
+        <img src={exercise.photo_url} alt="" loading="lazy" decoding="async" style={{ width: size, height: size, borderRadius: 8, objectFit: "cover" }} />
       ) : (
         <div style={{ width: size, height: size, borderRadius: 8, background: COLORS.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Dumbbell size={size * 0.42} color={COLORS.muted} />

@@ -215,7 +215,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
                 <div key={ex.id} style={styles.friendRow}>
                   <div onClick={() => ex.photo_url && setPreview(ex)} style={{ cursor: ex.photo_url ? "pointer" : "default" }}>
                     {ex.photo_url ? (
-                      <img src={ex.photo_url} alt="" style={{ width: 38, height: 38, borderRadius: 8, objectFit: "cover" }} />
+                      <img src={ex.photo_url} alt="" loading="lazy" decoding="async" style={{ width: 38, height: 38, borderRadius: 8, objectFit: "cover" }} />
                     ) : (
                       <div style={{ width: 38, height: 38, borderRadius: 8, background: COLORS.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Dumbbell size={16} color={COLORS.muted} />

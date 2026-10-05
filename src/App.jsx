@@ -12,16 +12,16 @@ import { useAppData } from "./hooks/useAppData";
 import { AuthScreen } from "./components/AuthScreen";
 import { TopBar, BottomNav, NewSessionChooser } from "./components/Nav";
 import { Home } from "./components/Home";
-import { CalendarView } from "./components/CalendarView";
 import { NewSession } from "./components/NewSession";
 import { SessionModal } from "./components/SessionModal";
-import { Friends } from "./components/Friends";
-import { Leaderboard } from "./components/Leaderboard";
 
-// Chargées à la demande : ce sont les deux seuls écrans qui importent recharts,
-// pas besoin d'alourdir le chargement initial (Home/Calendrier/Log) avec ce poids.
+// Écrans secondaires chargés à la demande : le premier affichage (accueil, nouvelle
+// séance) n'embarque que le nécessaire. Profil et Exercices importent recharts (lourd).
 const ProfileScreen = lazy(() => import("./components/ProfileScreen").then((m) => ({ default: m.ProfileScreen })));
 const ExercisesLibrary = lazy(() => import("./components/ExercisesLibrary").then((m) => ({ default: m.ExercisesLibrary })));
+const CalendarView = lazy(() => import("./components/CalendarView").then((m) => ({ default: m.CalendarView })));
+const Friends = lazy(() => import("./components/Friends").then((m) => ({ default: m.Friends })));
+const Leaderboard = lazy(() => import("./components/Leaderboard").then((m) => ({ default: m.Leaderboard })));
 
 const LazyFallback = () => (
   <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
@@ -108,10 +108,12 @@ export default function App() {
         )}
 
         {view === "calendar" && (
-          <CalendarView
-            sessions={sessions} hasMoreSessions={hasMoreSessions} onLoadMoreSessions={loadMoreSessions}
-            profiles={profiles} currentUserId={userId} onOpenSession={setModalSessionId} onBack={() => setView("home")}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <CalendarView
+              sessions={sessions} hasMoreSessions={hasMoreSessions} onLoadMoreSessions={loadMoreSessions}
+              profiles={profiles} currentUserId={userId} onOpenSession={setModalSessionId} onBack={() => setView("home")}
+            />
+          </Suspense>
         )}
 
         {view === "log" && (
@@ -143,7 +145,9 @@ export default function App() {
         )}
 
         {view === "friends" && (
-          <Friends currentUserId={userId} profiles={profiles} sessionShells={sessionShells} prsByUser={prsByUser} onOpenSession={setModalSessionId} />
+          <Suspense fallback={<LazyFallback />}>
+            <Friends currentUserId={userId} profiles={profiles} sessionShells={sessionShells} prsByUser={prsByUser} onOpenSession={setModalSessionId} />
+          </Suspense>
         )}
 
         {view === "exercises" && (
@@ -158,10 +162,12 @@ export default function App() {
         )}
 
         {view === "leaderboard" && (
-          <Leaderboard
-            profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells} sessionCounts={sessionCounts}
-            currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser}
-          />
+          <Suspense fallback={<LazyFallback />}>
+            <Leaderboard
+              profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells} sessionCounts={sessionCounts}
+              currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser}
+            />
+          </Suspense>
         )}
       </div>
       <BottomNav view={view} setView={setView} onNewSession={() => setShowNewSessionChooser(true)} />
