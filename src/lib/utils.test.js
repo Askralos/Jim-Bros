@@ -134,3 +134,16 @@ describe("supersets", () => {
     expect(normalizeSupersets([ex("A", 5), ex("B")]).map((e) => e.supersetGroup)).toEqual([null, null]);
   });
 });
+
+describe("presetToExercises avec supersets", () => {
+  it("conserve le groupe du superset sur les exercices générés", () => {
+    const preset = { exercises: [
+      { name: "Dips", setCount: 3, supersetGroup: 1 },
+      { name: "Tractions", setCount: 3, supersetGroup: 1 },
+      { name: "Squat", setCount: 2 },
+    ] };
+    const out = presetToExercises(preset);
+    expect(out.map((e) => e.supersetGroup)).toEqual([1, 1, null]);
+    expect(groupSupersets(out).map((b) => b.items.length)).toEqual([2, 1]);
+  });
+});

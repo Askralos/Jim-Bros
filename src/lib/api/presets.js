@@ -1,8 +1,9 @@
 import { supabase } from "../supabaseClient";
+import { normalizeSupersets } from "../utils";
 
 const PRESET_SELECT = `
   id, creator_id, name, created_at,
-  preset_exercises ( id, exercise_name, position, set_count, mode, rest_seconds, target_reps_min, target_reps_max )
+  preset_exercises ( id, exercise_name, position, set_count, mode, rest_seconds, target_reps_min, target_reps_max, superset_group )
 `;
 
 function shapePreset(row) {
@@ -16,6 +17,7 @@ function shapePreset(row) {
       .map((e) => ({
         name: e.exercise_name, setCount: e.set_count, mode: e.mode || "reps",
         restSeconds: e.rest_seconds, targetMin: e.target_reps_min, targetMax: e.target_reps_max,
+        supersetGroup: e.superset_group ?? null,
       })),
   };
 }
@@ -26,7 +28,7 @@ export async function getPresets() {
   return data.map(shapePreset);
 }
 
-// exercises : [{ name, setCount, mode, restSeconds, targetMin, targetMax }]
+// exercises : [{ name, setCount, mode, restSeconds, targetMin, targetMax, supersetGroup }]
 export async function createPreset(name, exercises, creatorId) {
   const { data: preset, error } = await supabase
     .from("session_presets")
@@ -47,7 +49,7 @@ export async function updatePreset(presetId, name, exercises) {
 
 async function writePresetExercises(presetId, exercises) {
   if (!exercises.length) return;
-  const rows = exercises.map((ex, i) => {
+  const rows = normalizeSupersets(exercises).map((ex, i) => {
     const hasTarget = ex.targetMin !== "" && ex.targetMin != null && ex.targetMax !== "" && ex.targetMax != null;
     return {
       preset_id: presetId, exercise_name: ex.name, position: i, set_count: Math.max(1, Number(ex.setCount) || 1),
@@ -55,6 +57,7 @@ async function writePresetExercises(presetId, exercises) {
       rest_seconds: ex.restSeconds !== "" && ex.restSeconds != null ? Number(ex.restSeconds) : null,
       target_reps_min: hasTarget ? Number(ex.targetMin) : null,
       target_reps_max: hasTarget ? Number(ex.targetMax) : null,
+      superset_group: ex.supersetGroup,
     };
   });
   const { error } = await supabase.from("preset_exercises").insert(rows);

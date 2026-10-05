@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target } from "lucide-react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
+import { groupSupersets, normalizeSupersets } from "../lib/utils";
 import { ExercisePicker } from "./ExercisePicker";
 
-const emptyPresetExercise = () => ({ name: "", setCount: 3, mode: "reps", restSeconds: "", targetMin: "", targetMax: "" });
+const emptyPresetExercise = () => ({ name: "", setCount: 3, mode: "reps", restSeconds: "", targetMin: "", targetMax: "", supersetGroup: null });
+
+const supersetBoxStyle = { border: `1px solid ${COLORS.lime}55`, background: "rgba(201,245,66,0.04)", borderRadius: 12, padding: "10px 8px 2px", marginBottom: 10 };
 
 function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
   return (
@@ -23,7 +26,7 @@ function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDe
               const hasTarget = e.targetMin != null && e.targetMax != null;
               const isTime = e.mode === "time";
               return (
-                <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px" }}>
+                <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px", ...(e.supersetGroup != null ? { borderLeft: `2px solid ${COLORS.lime}` } : {}) }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>{e.name}</span>
                     <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}{isTime ? " (temps)" : ""}</span>
@@ -97,16 +100,35 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const close = () => setEditing(null);
 
   const updateExAt = (i, patch) => setExercises((xs) => xs.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
-  const removeExAt = (i) => setExercises((xs) => xs.filter((_, idx) => idx !== i));
+  // Un superset réduit à un seul exercice redevient un exercice classique.
+  const removeExAt = (i) => setExercises((xs) => normalizeSupersets(xs.filter((_, idx) => idx !== i)));
   const addEx = () => setExercises((xs) => [...xs, emptyPresetExercise()]);
+  const addSuperset = (picked) => {
+    const group = Date.now();
+    setExercises((xs) => [
+      ...xs.filter((x) => x.name),
+      ...picked.map((e) => ({ ...emptyPresetExercise(), name: e.name, supersetGroup: group })),
+    ]);
+  };
+  const ungroup = (group) => setExercises((xs) => xs.map((x) => (x.supersetGroup === group ? { ...x, supersetGroup: null } : x)));
 
-  // Réordonne les exercices sans avoir à les supprimer/recréer.
+  // Réordonne sans supprimer/recréer. Dans un superset, on permute avec le voisin du
+  // même superset ; sinon le bloc entier (exercice seul ou superset) passe devant/
+  // derrière le bloc voisin, pour ne jamais casser un superset en deux.
   const moveExAt = (i, dir) => setExercises((xs) => {
     const j = i + dir;
     if (j < 0 || j >= xs.length) return xs;
-    const arr = [...xs];
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-    return arr;
+    if (xs[i].supersetGroup != null && xs[i].supersetGroup === xs[j].supersetGroup) {
+      const arr = [...xs];
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    }
+    const blocks = groupSupersets(xs);
+    const b = blocks.findIndex((bl) => bl.items.some((it) => it.index === i));
+    const c = b + dir;
+    if (c < 0 || c >= blocks.length) return xs;
+    [blocks[b], blocks[c]] = [blocks[c], blocks[b]];
+    return blocks.flatMap((bl) => bl.items.map((it) => it.ex));
   });
 
   const toggleReveal = (setter, i) => setter((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
@@ -122,6 +144,7 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
       .map((e) => ({
         name: e.name, setCount: Math.max(1, Number(e.setCount) || 1), mode: e.mode,
         restSeconds: e.restSeconds, targetMin: e.targetMin, targetMax: e.targetMax,
+        supersetGroup: e.supersetGroup ?? null,
       }));
     if (editing === "new") await onCreate(name.trim(), clean);
     else await onUpdate(editing, name.trim(), clean);
@@ -136,6 +159,79 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
   const ownerLabel = (preset) => (preset.creatorId === currentUserId ? "Toi" : profiles[preset.creatorId]?.display_name || "?");
 
+  const renderPresetEx = (ex, i, inSuperset = false) => (
+    <div key={i} style={{ ...styles.exCard, ...(inSuperset ? { marginBottom: 8 } : {}) }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        {ex.name ? (
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
+        ) : (
+          <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
+        )}
+        {ex.name && <button style={styles.linkBtn} onClick={() => setPickerFor(i)}>Changer</button>}
+        {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExAt(i)}><X size={15} /></button>}
+        {exercises.length > 1 && (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === 0} onClick={() => moveExAt(i, -1)} aria-label="Monter">
+              <ChevronUp size={15} color={i === 0 ? COLORS.line : COLORS.muted} />
+            </button>
+            <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === exercises.length - 1} onClick={() => moveExAt(i, 1)} aria-label="Descendre">
+              <ChevronDown size={15} color={i === exercises.length - 1 ? COLORS.line : COLORS.muted} />
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <button type="button" onClick={() => updateExAt(i, { mode: "reps" })} style={{ ...styles.tabPill, ...(ex.mode !== "time" ? styles.tabPillActive : {}) }}>Reps</button>
+        <button type="button" onClick={() => updateExAt(i, { mode: "time" })} style={{ ...styles.tabPill, ...(ex.mode === "time" ? styles.tabPillActive : {}) }}>Temps</button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 12, color: COLORS.muted }}>Nombre de séries</span>
+        <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: Math.max(1, ex.setCount - 1) })}>−</button>
+        <span style={{ fontSize: 14, fontWeight: 700, minWidth: 16, textAlign: "center" }}>{ex.setCount}</span>
+        <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: ex.setCount + 1 })}>+</button>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+        {revealRest.has(i) || ex.restSeconds !== "" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Clock size={12} color={COLORS.muted} />
+            <input
+              style={{ ...styles.setInput, width: 60, padding: "6px 8px" }}
+              placeholder="Repos (s)" type="number" value={ex.restSeconds}
+              onChange={(e) => updateExAt(i, { restSeconds: e.target.value })}
+            />
+            <button style={styles.iconBtn} onClick={() => clearRest(i)}><X size={12} /></button>
+          </div>
+        ) : (
+          <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealRest, i)}>+ Temps de repos</button>
+        )}
+
+        {revealTarget.has(i) || ex.targetMin !== "" || ex.targetMax !== "" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Target size={12} color={COLORS.muted} />
+            <input
+              style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+              placeholder="Min" type="number" value={ex.targetMin}
+              onChange={(e) => updateExAt(i, { targetMin: e.target.value })}
+            />
+            <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
+            <input
+              style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
+              placeholder="Max" type="number" value={ex.targetMax}
+              onChange={(e) => updateExAt(i, { targetMax: e.target.value })}
+            />
+            <span style={{ fontSize: 10, color: COLORS.muted }}>{ex.mode === "time" ? "sec" : "reps"}</span>
+            <button style={styles.iconBtn} onClick={() => clearTarget(i)}><X size={12} /></button>
+          </div>
+        ) : (
+          <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, i)}>
+            + Objectif de {ex.mode === "time" ? "temps" : "reps"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   if (editing !== null) {
     return (
       <div>
@@ -145,86 +241,38 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
         </div>
         <input style={styles.input} placeholder="Nom du preset (ex: Push day)" value={name} onChange={(e) => setName(e.target.value)} />
 
-        {exercises.map((ex, i) => (
-          <div key={i} style={styles.exCard}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-              {ex.name ? (
-                <span style={{ flex: 1, fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ex.name}</span>
-              ) : (
-                <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => setPickerFor(i)}>Choisir un exercice</button>
-              )}
-              {ex.name && <button style={styles.linkBtn} onClick={() => setPickerFor(i)}>Changer</button>}
-              {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExAt(i)}><X size={15} /></button>}
-              {exercises.length > 1 && (
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === 0} onClick={() => moveExAt(i, -1)} aria-label="Monter">
-                    <ChevronUp size={15} color={i === 0 ? COLORS.line : COLORS.muted} />
-                  </button>
-                  <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === exercises.length - 1} onClick={() => moveExAt(i, 1)} aria-label="Descendre">
-                    <ChevronDown size={15} color={i === exercises.length - 1 ? COLORS.line : COLORS.muted} />
-                  </button>
-                </div>
-              )}
+        {groupSupersets(exercises).map((block) => {
+          if (block.group == null || block.items.length < 2) return renderPresetEx(block.items[0].ex, block.items[0].index);
+          return (
+            <div key={`superset-${block.items[0].index}`} style={supersetBoxStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, paddingLeft: 2 }}>
+                <Link2 size={14} color={COLORS.lime} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.lime, flex: 1 }}>Superset · {block.items.length} exercices</span>
+                <button style={{ ...styles.linkBtn, color: COLORS.muted }} onClick={() => ungroup(block.group)}>Dissocier</button>
+              </div>
+              {block.items.map(({ ex, index }) => renderPresetEx(ex, index, true))}
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <button type="button" onClick={() => updateExAt(i, { mode: "reps" })} style={{ ...styles.tabPill, ...(ex.mode !== "time" ? styles.tabPillActive : {}) }}>Reps</button>
-              <button type="button" onClick={() => updateExAt(i, { mode: "time" })} style={{ ...styles.tabPill, ...(ex.mode === "time" ? styles.tabPillActive : {}) }}>Temps</button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 12, color: COLORS.muted }}>Nombre de séries</span>
-              <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: Math.max(1, ex.setCount - 1) })}>−</button>
-              <span style={{ fontSize: 14, fontWeight: 700, minWidth: 16, textAlign: "center" }}>{ex.setCount}</span>
-              <button style={styles.iconBtn} onClick={() => updateExAt(i, { setCount: ex.setCount + 1 })}>+</button>
-            </div>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
-              {revealRest.has(i) || ex.restSeconds !== "" ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <Clock size={12} color={COLORS.muted} />
-                  <input
-                    style={{ ...styles.setInput, width: 60, padding: "6px 8px" }}
-                    placeholder="Repos (s)" type="number" value={ex.restSeconds}
-                    onChange={(e) => updateExAt(i, { restSeconds: e.target.value })}
-                  />
-                  <button style={styles.iconBtn} onClick={() => clearRest(i)}><X size={12} /></button>
-                </div>
-              ) : (
-                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealRest, i)}>+ Temps de repos</button>
-              )}
-
-              {revealTarget.has(i) || ex.targetMin !== "" || ex.targetMax !== "" ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <Target size={12} color={COLORS.muted} />
-                  <input
-                    style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
-                    placeholder="Min" type="number" value={ex.targetMin}
-                    onChange={(e) => updateExAt(i, { targetMin: e.target.value })}
-                  />
-                  <span style={{ fontSize: 11, color: COLORS.muted }}>-</span>
-                  <input
-                    style={{ ...styles.setInput, width: 44, padding: "6px 8px" }}
-                    placeholder="Max" type="number" value={ex.targetMax}
-                    onChange={(e) => updateExAt(i, { targetMax: e.target.value })}
-                  />
-                  <span style={{ fontSize: 10, color: COLORS.muted }}>{ex.mode === "time" ? "sec" : "reps"}</span>
-                  <button style={styles.iconBtn} onClick={() => clearTarget(i)}><X size={12} /></button>
-                </div>
-              ) : (
-                <button style={styles.linkBtn} onClick={() => toggleReveal(setRevealTarget, i)}>
-                  + Objectif de {ex.mode === "time" ? "temps" : "reps"}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        <button style={styles.secondaryBtn} onClick={addEx}>+ Ajouter un exercice</button>
+          );
+        })}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={styles.secondaryBtn} onClick={addEx}>+ Exercice</button>
+          <button style={styles.secondaryBtn} onClick={() => setPickerFor("superset")}><Link2 size={14} style={{ marginRight: 6 }} />Superset</button>
+        </div>
 
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={close}>Annuler</button>
           <button style={{ ...styles.primaryBtn, flex: 1 }} disabled={!valid} onClick={submit}>Enregistrer</button>
         </div>
 
-        {pickerFor !== null && (
+        {pickerFor === "superset" && (
+          <ExercisePicker
+            multi
+            exerciseList={exerciseList}
+            onClose={() => setPickerFor(null)}
+            onConfirmMulti={(picked) => { addSuperset(picked); setPickerFor(null); }}
+          />
+        )}
+        {pickerFor !== null && pickerFor !== "superset" && (
           <ExercisePicker
             exerciseList={exerciseList}
             onClose={() => setPickerFor(null)}

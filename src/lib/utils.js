@@ -29,6 +29,7 @@ export const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u
 export const presetToExercises = (preset) =>
   preset.exercises.map((ex) => ({
     name: ex.name,
+    supersetGroup: ex.supersetGroup ?? null,
     sets: Array.from({ length: ex.setCount }, () => ({
       reps: "", weight: "", weightType: "external", mode: ex.mode === "time" ? "time" : "reps", seconds: "",
       restSeconds: ex.restSeconds != null ? String(ex.restSeconds) : "",
