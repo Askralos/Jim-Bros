@@ -31,6 +31,7 @@ export const EXERCISE_TAGS = [
   { key: "abdo", label: "Abdo", color: "#FFB020" },
   { key: "skills", label: "Skills", color: "#22C3DD" },
   { key: "cardio", label: "Cardio", color: "#E5484D" },
+  { key: "pliometrie", label: "Pliométrie", color: "#845EF7" },
 ];
 
 export const tagLabel = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.label || key;
