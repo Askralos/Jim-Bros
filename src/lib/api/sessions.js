@@ -8,7 +8,7 @@ const SESSION_SELECT = `
     id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
     entry_exercises (
       id, exercise_name, position, superset_group,
-      entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position )
+      entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop )
     )
   )
 `;
@@ -25,6 +25,7 @@ function shapeExercises(entryExercisesRows) {
         .sort((a, b) => a.position - b.position)
         .map((s) => ({
           reps: s.reps, weight: s.weight_kg, weightType: s.weight_type, mode: s.mode, seconds: s.seconds,
+          isDrop: !!s.is_drop,
           restSeconds: s.rest_seconds, targetMin: s.target_reps_min, targetMax: s.target_reps_max,
         })),
     }));
@@ -99,7 +100,7 @@ export async function getSessionShells() {
 export async function getUserHistory(userId) {
   const { data, error } = await supabase
     .from("session_entries")
-    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position ) )")
+    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop ) )")
     .eq("user_id", userId);
   if (error) throw error;
   const sessions = [];
@@ -263,6 +264,8 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
         target_reps_min: hasTarget ? Number(s.targetMin) : null,
         target_reps_max: hasTarget ? Number(s.targetMax) : null,
         position: j,
+        // Un drop prolonge la série précédente ; la 1re série d'un exo ne peut pas en être un.
+        is_drop: j > 0 && mode === "reps" && !!s.isDrop,
       });
     });
   });

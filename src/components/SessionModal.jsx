@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets } from "../lib/utils";
+import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets, groupDrops, formatSet } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
@@ -39,7 +39,8 @@ function targetTint(value, min, max) {
 // et le repos passent en sous-ligne secondaire. Le code couleur reste sur le fond de la
 // carte, et marche aussi bien pour un objectif de reps que pour un objectif de temps
 // (gainage, planche...).
-function SetChip({ index, s }) {
+// Les paliers d'un dropset s'affichent dans la carte de leur série ("↳ 8×45kg").
+function SetChip({ number, s, drops = [] }) {
   const hasTarget = s.targetMin != null && s.targetMax != null;
   const isTime = s.mode === "time";
   const mainValue = isTime ? s.seconds : s.reps;
@@ -54,7 +55,7 @@ function SetChip({ index, s }) {
     `${s.weight}kg`;
   return (
     <div style={cardStyle}>
-      <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {index + 1}</div>
+      <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {number}{drops.length ? " · dropset" : ""}</div>
       <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
         {isTime ? (
           `${s.seconds}s`
@@ -62,6 +63,11 @@ function SetChip({ index, s }) {
           <>{s.reps} reps <span style={{ fontWeight: 400, color: COLORS.muted }}>×</span> {loadLabel}</>
         )}
       </div>
+      {drops.map((d, k) => (
+        <div key={k} style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", marginTop: 1 }}>
+          <span style={{ color: COLORS.lime }}>↳</span> {formatSet(d)}
+        </div>
+      ))}
       {hasTarget && <div style={{ fontSize: 10.5, marginTop: 2 }}>obj. {s.targetMin}-{s.targetMax}{isTime ? "s" : ""}</div>}
       {s.restSeconds != null && (
         <div style={{ fontSize: 10, color: COLORS.muted, marginTop: 2 }}>repos {s.restSeconds}s</div>
@@ -374,7 +380,7 @@ export function SessionModal({
                           <div key={index} style={{ marginBottom: inSuperset ? 10 : 18 }}>
                             <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {ex.sets.map((s, j) => <SetChip key={j} index={j} s={s} />)}
+                              {groupDrops(ex.sets).map((g) => <SetChip key={g.index} number={g.number} s={g.set} drops={g.drops.map((d) => d.set)} />)}
                             </div>
                           </div>
                         );

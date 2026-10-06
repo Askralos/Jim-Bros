@@ -5,7 +5,7 @@ import { COLORS, WEIGHT_TYPES } from "../lib/constants";
 import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
 import { ExercisePicker, ExerciseRowThumb } from "./ExercisePicker";
 
-export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "" };
+export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "", isDrop: false };
 export const emptyExercise = () => ({ name: "", supersetGroup: null, sets: [{ ...EMPTY_SET }] });
 
 export function cleanExercises(exercises) {
@@ -15,7 +15,10 @@ export function cleanExercises(exercises) {
       .map((ex) => ({
         name: ex.name.trim(),
         supersetGroup: ex.supersetGroup ?? null,
-        sets: ex.sets.filter((s) => (s.mode === "time" ? s.seconds : s.reps)),
+        sets: ex.sets
+          .filter((s) => (s.mode === "time" ? s.seconds : s.reps))
+          // Un drop ne peut pas ouvrir l'exercice (sa série a pu être vidée).
+          .map((s, j) => (j === 0 && s.isDrop ? { ...s, isDrop: false } : s)),
       }))
       .filter((ex) => ex.sets.length)
   );
@@ -41,9 +44,21 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
   // Un superset réduit à un seul exercice redevient un exercice classique.
   const removeExercise = (i) => onChange(normalizeSupersets(exercises.filter((_, idx) => idx !== i)));
   const ungroup = (group) => onChange(exercises.map((ex) => (ex.supersetGroup === group ? { ...ex, supersetGroup: null } : ex)));
+  // Nouvelle série = copie de la dernière vraie série (pas d'un drop).
   const duplicateLastSet = (ex) => {
-    const last = ex.sets[ex.sets.length - 1];
-    return { ...ex, sets: [...ex.sets, last ? { ...last } : { ...EMPTY_SET }] };
+    const last = [...ex.sets].reverse().find((s) => !s.isDrop);
+    return { ...ex, sets: [...ex.sets, last ? { ...last, isDrop: false } : { ...EMPTY_SET }] };
+  };
+  // Dropset : ajoute un palier après la série j (et ses drops déjà présents).
+  const addDrop = (i, j) => {
+    const next = [...exercises];
+    const sets = [...next[i].sets];
+    let end = j;
+    while (end + 1 < sets.length && sets[end + 1].isDrop) end++;
+    const parent = sets[j];
+    sets.splice(end + 1, 0, { ...EMPTY_SET, weightType: parent.weightType, mode: parent.mode, isDrop: true });
+    next[i] = { ...next[i], sets };
+    onChange(next);
   };
   const addSet = (i) => {
     const next = [...exercises];
@@ -57,14 +72,20 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
     next[i].sets[j] = { ...next[i].sets[j], [field]: val };
     onChange(next);
   };
+  // Supprimer une série supprime aussi ses drops.
   const removeSet = (i, j) => {
     const next = [...exercises];
-    next[i].sets = next[i].sets.filter((_, idx) => idx !== j);
+    const sets = next[i].sets;
+    let end = j;
+    if (!sets[j].isDrop) while (end + 1 < sets.length && sets[end + 1].isDrop) end++;
+    next[i].sets = sets.filter((_, idx) => idx < j || idx > end);
+    if (!next[i].sets.length) next[i].sets = [{ ...EMPTY_SET }];
     onChange(next);
   };
   const setMode = (i, mode) => {
     const next = [...exercises];
-    next[i].sets = next[i].sets.map((s) => ({ ...s, mode }));
+    // Pas de dropset en mode temps : les drops redeviennent des séries.
+    next[i].sets = next[i].sets.map((s) => ({ ...s, mode, isDrop: mode === "time" ? false : s.isDrop }));
     onChange(next);
   };
 
@@ -79,6 +100,7 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
 
   const renderExercise = (ex, i, inSuperset) => {
     const mode = ex.sets[0]?.mode || "reps";
+    let setNumber = 0; // numéro affiché : les drops ne comptent pas comme des séries
     return (
       <div key={i} style={{ ...styles.exCard, ...(inSuperset ? { marginBottom: 8 } : {}) }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
@@ -111,12 +133,16 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
 
         {ex.sets.map((s, j) => {
           const key = `${i}-${j}`;
+          const isDrop = s.isDrop && j > 0;
+          if (!isDrop) setNumber++;
           const showRest = revealRest.has(key) || s.restSeconds !== "";
           const showTarget = revealTarget.has(key) || s.targetMin !== "" || s.targetMax !== "";
           return (
-            <div key={j} style={{ marginBottom: 8 }}>
+            <div key={j} style={{ marginBottom: 8, ...(isDrop ? { marginLeft: 14, marginTop: -2 } : {}) }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: COLORS.muted, width: 14, flexShrink: 0 }}>{j + 1}</span>
+                {isDrop
+                  ? <span style={{ fontSize: 10, color: COLORS.lime, fontWeight: 700, flexShrink: 0 }} title="Drop">↳ drop</span>
+                  : <span style={{ fontSize: 11, color: COLORS.muted, width: 14, flexShrink: 0 }}>{setNumber}</span>}
                 {mode === "time" ? (
                   <input style={{ ...styles.setInput, minWidth: 56, flex: "1 1 56px" }} placeholder="Sec" type="number" value={s.seconds} onChange={(e) => updateSet(i, j, "seconds", e.target.value)} />
                 ) : (
@@ -139,7 +165,9 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
                 )}
               </div>
 
+              {!isDrop && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 4, marginLeft: 20 }}>
+                {mode === "reps" && <button style={styles.linkBtn} onClick={() => addDrop(i, j)}>+ drop</button>}
                 {showRest ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <Clock size={12} color={COLORS.muted} />
@@ -177,6 +205,7 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
                   </button>
                 )}
               </div>
+              )}
             </div>
           );
         })}

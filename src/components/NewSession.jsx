@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Camera, Check, Loader2, GitCompare, X } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS } from "../lib/constants";
-import { todayKey, fmtDate, formatSet } from "../lib/utils";
+import { todayKey, fmtDate, groupDrops, formatSetWithDrops } from "../lib/utils";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
 import { GuestPills } from "./GuestPicker";
@@ -60,7 +60,7 @@ function CompareReference({ session, currentUserId, onChange, onRemove }) {
       {entry.exercises.map((ex, i) => (
         <div key={i} style={{ marginBottom: 4, ...(ex.supersetGroup != null ? { borderLeft: `2px solid ${COLORS.lime}`, paddingLeft: 6 } : {}) }}>
           <span style={{ fontSize: 12, color: COLORS.muted }}>{ex.name}</span>
-          <div style={{ fontSize: 12.5, color: COLORS.chalk }}>{ex.sets.map((s) => formatSet(s)).join(", ")}</div>
+          <div style={{ fontSize: 12.5, color: COLORS.chalk }}>{groupDrops(ex.sets).map(formatSetWithDrops).join(", ")}</div>
         </div>
       ))}
     </div>

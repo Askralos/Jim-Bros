@@ -11,6 +11,8 @@ import {
   normalizeSupersets,
   chainExercises,
   mergeSessions,
+  groupDrops,
+  formatSetWithDrops,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -193,5 +195,19 @@ describe("mergeSessions (rafraîchissement ciblé)", () => {
   it("ignore une nouvelle séance plus ancienne que la page s'il reste des pages", () => {
     expect(ids(mergeSessions(prev, [S("z", "2026-09-01")], ["z"], { hasMore: true }))).toEqual(["c", "b", "a"]);
     expect(ids(mergeSessions(prev, [S("z", "2026-09-01")], ["z"], { hasMore: false }))).toEqual(["c", "b", "a", "z"]);
+  });
+});
+
+describe("dropsets", () => {
+  const set = (reps, weight, isDrop = false) => ({ reps, weight, weightType: "external", mode: "reps", isDrop });
+
+  it("rattache les drops à la série qui les précède et numérote sans eux", () => {
+    const groups = groupDrops([set(12, 60), set(10, 60), set(8, 45, true), set(6, 30, true), set(10, 60)]);
+    expect(groups.map((g) => [g.number, g.index, g.drops.map((d) => d.index)])).toEqual([[1, 0, []], [2, 1, [2, 3]], [3, 4, []]]);
+    expect(formatSetWithDrops(groups[1])).toBe("10×60kg → 8×45kg → 6×30kg");
+  });
+
+  it("un drop en tête devient une série normale", () => {
+    expect(groupDrops([set(8, 45, true), set(6, 30, true)]).map((g) => g.drops.length)).toEqual([1]);
   });
 });

@@ -78,6 +78,23 @@ export function chainExercises(list, i, newItems) {
   return normalizeSupersets(next);
 }
 
+// Dropsets : chaque série (isDrop false) suivie de ses paliers (isDrop true).
+// Renvoie [{ set, number, index, drops: [{ set, index }] }] ; number = numéro de série
+// affiché (les drops ne comptent pas), index = position dans le tableau d'origine.
+// Un drop sans série devant lui (en tête) est traité comme une série normale.
+export function groupDrops(sets) {
+  const groups = [];
+  sets.forEach((set, index) => {
+    const last = groups[groups.length - 1];
+    if (set.isDrop && last) last.drops.push({ set, index });
+    else groups.push({ set, number: groups.length + 1, index, drops: [] });
+  });
+  return groups;
+}
+
+// Résumé compact d'une série et de ses drops : "10×60kg → 8×45kg → 6×30kg".
+export const formatSetWithDrops = (group) => [group.set, ...group.drops.map((d) => d.set)].map(formatSet).join(" → ");
+
 // Ordre du fil : date décroissante, puis heure de publication décroissante.
 const sessionOrder = (a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1);
 
