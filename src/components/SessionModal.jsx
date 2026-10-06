@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2 } from "lucide-react";
+import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2, GitCompare } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
 import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets, groupDrops, formatSet } from "../lib/utils";
@@ -8,6 +8,7 @@ import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEdito
 import { DurationInput } from "./DurationInput";
 import { GuestPills } from "./GuestPicker";
 import { PresetsEditor } from "./PresetsEditor";
+import { ComparePicker, CompareReference } from "./CompareSession";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
@@ -77,7 +78,7 @@ function SetChip({ number, s, drops = [] }) {
 }
 
 export function SessionModal({
-  session, profiles, currentUserId, exerciseList, otherProfiles,
+  session, sessions = [], profiles, currentUserId, exerciseList, otherProfiles,
   presets, onCreatePreset, onUpdatePreset, onDeletePreset,
   onClose, onSubmitEntry, onDeleteEntry, onEditSession, onDeleteSession,
 }) {
@@ -112,6 +113,9 @@ export function SessionModal({
   const [entryError, setEntryError] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const [compareSessionId, setCompareSessionId] = useState(null);
+  const [showComparePicker, setShowComparePicker] = useState(false);
+  const compareSession = sessions.find((s) => s.id === compareSessionId) || null;
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
 
@@ -167,9 +171,24 @@ export function SessionModal({
             <button style={styles.secondaryBtn} onClick={() => setShowPresetPicker(true)}>Depuis un preset</button>
           )}
 
-          <div style={{ marginTop: 4 }}>
-            <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
+            <span style={styles.label}>Tes exercices</span>
+            {!compareSession && (
+              <button style={{ ...styles.linkBtn, display: "flex", alignItems: "center", gap: 4 }} onClick={() => setShowComparePicker(true)}>
+                <GitCompare size={13} />Comparer
+              </button>
+            )}
           </div>
+          {compareSession && (
+            <CompareReference
+              session={compareSession}
+              currentUserId={currentUserId}
+              onChange={() => setShowComparePicker(true)}
+              onRemove={() => setCompareSessionId(null)}
+            />
+          )}
+
+          <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
 
           <label style={{ ...styles.label, marginTop: 4 }}>Ton feeling (optionnel)</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
@@ -219,6 +238,16 @@ export function SessionModal({
             )}
           </button>
         </div>
+
+        {showComparePicker && (
+          <ComparePicker
+            sessions={sessions}
+            currentUserId={currentUserId}
+            excludeId={session.id}
+            onClose={() => setShowComparePicker(false)}
+            onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
+          />
+        )}
 
         {showPresetPicker && (
           <div style={styles.modalBackdrop} onClick={(e) => { e.stopPropagation(); setShowPresetPicker(false); }}>

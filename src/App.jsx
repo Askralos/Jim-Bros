@@ -186,7 +186,7 @@ export default function App() {
 
       {modalSession && (
         <SessionModal
-          session={modalSession} profiles={profiles} currentUserId={userId}
+          session={modalSession} sessions={sessions} profiles={profiles} currentUserId={userId}
           exerciseList={exercises} otherProfiles={Object.values(profiles).filter((p) => p.id !== modalSession.creator)}
           presets={presets}
           onCreatePreset={handleCreatePreset}
