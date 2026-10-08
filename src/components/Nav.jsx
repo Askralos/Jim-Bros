@@ -23,15 +23,17 @@ export function TopBar({ profile }) {
 export function BottomNav({ view, setView, onNewSession }) {
   const items = [
     { key: "home", label: "Feed", icon: Calendar },
-    { key: "leaderboard", label: "Classement", icon: Trophy },
+    { key: "exercises", label: "Exos", icon: BookOpen },
     { key: "log", label: "Séance", icon: Plus, isCenter: true },
     { key: "friends", label: "Amis", icon: Users },
-    { key: "exercises", label: "Exos", icon: BookOpen },
     { key: "profile", label: "Profil", icon: User },
+    // Masqué de la barre (peu utilisé) mais l'écran Classement est conservé :
+    // passer hidden à false pour le réafficher.
+    { key: "leaderboard", label: "Classement", icon: Trophy, hidden: true },
   ];
   return (
     <div style={styles.bottomNav}>
-      {items.map((it) => {
+      {items.filter((it) => !it.hidden).map((it) => {
         const Icon = it.icon;
         const active = view === it.key || (it.key === "home" && view === "calendar");
         if (it.isCenter) {
