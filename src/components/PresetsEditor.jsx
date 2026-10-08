@@ -1,68 +1,56 @@
 import { useState } from "react";
-import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target, Link2 } from "lucide-react";
+import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target, Link2, Copy, Check } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
 import { ExercisePicker } from "./ExercisePicker";
+import { Avatar } from "./Avatar";
 
 const emptyPresetExercise = () => ({ name: "", setCount: 3, mode: "reps", restSeconds: "", targetMin: "", targetMax: "", supersetGroup: null });
 
 const supersetBoxStyle = { border: `1px solid ${COLORS.lime}55`, background: "rgba(201,245,66,0.04)", borderRadius: 12, padding: "10px 8px 2px", marginBottom: 10 };
 
-function PresetRow({ preset, ownerLabel, owned, expanded, onToggle, onEdit, onDelete, onSelect }) {
+function PresetPreview({ preset, owned, copied, onEdit, onDelete, onSelect, onCopy }) {
   return (
-    <div style={styles.friendRow}>
-      <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={onToggle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preset.name}</span>
-          <span style={{ fontSize: 11, color: COLORS.muted, flexShrink: 0 }}>{ownerLabel}</span>
-        </div>
-        <span style={{ fontSize: 11, color: COLORS.muted }}>{preset.exercises.length} exercice{preset.exercises.length > 1 ? "s" : ""}</span>
+    <div style={{ padding: "2px 10px 10px" }}>
+      <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
+        {preset.exercises.length === 0 && <li style={{ fontSize: 12, color: COLORS.muted }}>Vide</li>}
+        {preset.exercises.map((e, i) => {
+          const hasTarget = e.targetMin != null && e.targetMax != null;
+          const isTime = e.mode === "time";
+          return (
+            <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px", ...(e.supersetGroup != null ? { borderLeft: `2px solid ${COLORS.lime}` } : {}) }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span>{e.name}</span>
+                <span style={{ color: COLORS.muted, flexShrink: 0 }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}{isTime ? " (temps)" : ""}</span>
+              </div>
+              {(hasTarget || e.restSeconds != null) && (
+                <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 11, color: COLORS.muted }}>
+                  {hasTarget && <span>obj. {e.targetMin}-{e.targetMax}{isTime ? "s" : " reps"}</span>}
+                  {e.restSeconds != null && <span>repos {e.restSeconds}s</span>}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
-        {expanded && (
-          <ul style={{ margin: "8px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
-            {preset.exercises.length === 0 && <li style={{ fontSize: 12, color: COLORS.muted }}>Vide</li>}
-            {preset.exercises.map((e, i) => {
-              const hasTarget = e.targetMin != null && e.targetMax != null;
-              const isTime = e.mode === "time";
-              return (
-                <li key={i} style={{ fontSize: 12.5, color: COLORS.chalk, background: COLORS.surface2, borderRadius: 7, padding: "6px 8px", ...(e.supersetGroup != null ? { borderLeft: `2px solid ${COLORS.lime}` } : {}) }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span>{e.name}</span>
-                    <span style={{ color: COLORS.muted }}>{e.setCount} série{e.setCount > 1 ? "s" : ""}{isTime ? " (temps)" : ""}</span>
-                  </div>
-                  {(hasTarget || e.restSeconds != null) && (
-                    <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 11, color: COLORS.muted }}>
-                      {hasTarget && <span>obj. {e.targetMin}-{e.targetMax}{isTime ? "s" : " reps"}</span>}
-                      {e.restSeconds != null && <span>repos {e.restSeconds}s</span>}
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        {onSelect && (
+          <button style={{ ...styles.primaryBtn, flex: 1, margin: 0 }} onClick={() => onSelect(preset)}>Utiliser</button>
         )}
-
-        {expanded && onSelect && (
-          <button
-            style={{ ...styles.primaryBtn, marginTop: 10 }}
-            onClick={(e) => { e.stopPropagation(); onSelect(preset); }}
-          >
-            Utiliser ce preset
+        {!owned && (
+          <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} disabled={copied} onClick={() => onCopy(preset)}>
+            {copied ? <><Check size={14} style={{ marginRight: 6 }} />Copié dans tes presets</> : <><Copy size={14} style={{ marginRight: 6 }} />Copier</>}
           </button>
         )}
+        {owned && (
+          <>
+            <button style={{ ...styles.secondaryBtn, flex: 1, margin: 0 }} onClick={() => onEdit(preset)}><Pencil size={14} style={{ marginRight: 6 }} />Modifier</button>
+            <button style={styles.iconBtn} onClick={() => onDelete(preset)} aria-label="Supprimer"><Trash2 size={15} color={COLORS.flame} /></button>
+          </>
+        )}
       </div>
-
-      <button style={styles.iconBtn} onClick={onToggle} aria-label={expanded ? "Réduire" : "Détails"}>
-        {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-      </button>
-
-      {owned && (
-        <div style={{ display: "flex", gap: 2 }}>
-          <button style={styles.iconBtn} onClick={(e) => { e.stopPropagation(); onEdit(preset); }} aria-label="Modifier"><Pencil size={15} /></button>
-          <button style={styles.iconBtn} onClick={(e) => { e.stopPropagation(); onDelete(preset); }} aria-label="Supprimer"><Trash2 size={15} color={COLORS.flame} /></button>
-        </div>
-      )}
     </div>
   );
 }
@@ -78,6 +66,8 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   const [exercises, setExercises] = useState([emptyPresetExercise()]);
   const [pickerFor, setPickerFor] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [openPeople, setOpenPeople] = useState(() => new Set([currentUserId]));
+  const [copiedIds, setCopiedIds] = useState(() => new Set());
   const [revealRest, setRevealRest] = useState(() => new Set());
   const [revealTarget, setRevealTarget] = useState(() => new Set());
 
@@ -152,7 +142,14 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
   };
 
   const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
-  const ownerLabel = (preset) => (preset.creatorId === currentUserId ? "Toi" : profiles[preset.creatorId]?.display_name || "?");
+  const togglePerson = (id) => setOpenPeople((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // Copie le preset d'un pote dans mes presets (suffixe "(copie)" si j'en ai déjà un du même nom).
+  const copy = async (preset) => {
+    const taken = presets.some((p) => p.creatorId === currentUserId && p.name === preset.name);
+    await onCreate(taken ? `${preset.name} (copie)` : preset.name, preset.exercises);
+    setCopiedIds((s) => new Set(s).add(preset.id));
+  };
 
   const renderPresetEx = (ex, i, inSuperset = false) => (
     <div key={i} style={{ ...styles.exCard, ...(inSuperset ? { marginBottom: 8 } : {}) }}>
@@ -288,29 +285,16 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
     );
   }
 
-  const myPresets = presets.filter((p) => p.creatorId === currentUserId);
-  const otherPresets = presets.filter((p) => p.creatorId !== currentUserId);
-
-  const renderGroup = (label, list) => (
-    <div style={{ marginTop: 14 }}>
-      <h3 style={{ ...styles.sectionTitle, margin: "0 0 8px" }}>{label} ({list.length})</h3>
-      {list.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun preset ici pour l'instant.</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {list.map((p) => (
-          <PresetRow
-            key={p.id}
-            preset={p}
-            ownerLabel={ownerLabel(p)}
-            owned={p.creatorId === currentUserId}
-            expanded={expandedId === p.id}
-            onToggle={() => toggle(p.id)}
-            onEdit={openEdit}
-            onDelete={remove}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    </div>
+  // Presets regroupés par créateur : moi d'abord, puis les potes par ordre alphabétique
+  // (seuls ceux qui ont au moins un preset apparaissent).
+  const byCreator = new Map();
+  presets.forEach((p) => {
+    if (!byCreator.has(p.creatorId)) byCreator.set(p.creatorId, []);
+    byCreator.get(p.creatorId).push(p);
+  });
+  const nameOf = (id) => profiles[id]?.display_name || "?";
+  const people = [...byCreator.keys()].sort((a, b) =>
+    a === currentUserId ? -1 : b === currentUserId ? 1 : nameOf(a).localeCompare(nameOf(b), "fr")
   );
 
   return (
@@ -318,8 +302,61 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
       <h2 style={styles.sectionTitle}>Presets de séance ({presets.length})</h2>
       <button style={styles.secondaryBtn} onClick={openCreate}>+ Créer un preset</button>
 
-      {renderGroup("Mes presets", myPresets)}
-      {renderGroup("Presets de mes potes", otherPresets)}
+      {presets.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 14 }}>Aucun preset pour l'instant.</p>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
+        {people.map((creatorId) => {
+          const list = byCreator.get(creatorId);
+          const mine = creatorId === currentUserId;
+          const open = openPeople.has(creatorId);
+          return (
+            <div key={creatorId} style={{ background: COLORS.surface, border: `1px solid ${COLORS.line}`, borderRadius: 12, overflow: "hidden" }}>
+              <button
+                onClick={() => togglePerson(creatorId)}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: 10, background: "none", border: "none", color: COLORS.chalk, cursor: "pointer", textAlign: "left" }}
+              >
+                <Avatar profile={profiles[creatorId]} size={32} />
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {mine ? "Mes presets" : nameOf(creatorId)}
+                </span>
+                <span style={{ fontSize: 12, color: COLORS.muted }}>{list.length}</span>
+                {open ? <ChevronUp size={16} color={COLORS.muted} /> : <ChevronDown size={16} color={COLORS.muted} />}
+              </button>
+
+              {open && (
+                <div style={{ borderTop: `1px solid ${COLORS.line}` }}>
+                  {list.map((p) => {
+                    const expanded = expandedId === p.id;
+                    return (
+                      <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.line}` }}>
+                        <button
+                          onClick={() => toggle(p.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 12px", background: expanded ? COLORS.surface2 : "none", border: "none", color: COLORS.chalk, cursor: "pointer", textAlign: "left" }}
+                        >
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                          <span style={{ fontSize: 11, color: COLORS.muted, flexShrink: 0 }}>{p.exercises.length} exo{p.exercises.length > 1 ? "s" : ""}</span>
+                          {expanded ? <ChevronUp size={14} color={COLORS.muted} /> : <ChevronDown size={14} color={COLORS.muted} />}
+                        </button>
+                        {expanded && (
+                          <PresetPreview
+                            preset={p}
+                            owned={mine}
+                            copied={copiedIds.has(p.id)}
+                            onEdit={openEdit}
+                            onDelete={remove}
+                            onSelect={onSelect}
+                            onCopy={copy}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
