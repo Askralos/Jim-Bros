@@ -25,7 +25,7 @@ export function CalendarView({ sessions, hasMoreSessions, onLoadMoreSessions, pr
 
   const cells = useMemo(() => {
     const start = new Date(month);
-    start.setDate(1 - start.getDay());
+    start.setDate(1 - ((start.getDay() + 6) % 7)); // semaine du lundi au dimanche
     return Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d; });
   }, [month]);
 
@@ -44,7 +44,7 @@ export function CalendarView({ sessions, hasMoreSessions, onLoadMoreSessions, pr
         <button style={styles.iconBtn} onClick={() => { const m = new Date(month); m.setMonth(m.getMonth() + 1); setMonth(m); }}><ChevronRight size={16} /></button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 16 }}>
-        {["D", "L", "M", "M", "J", "V", "S"].map((d, i) => (
+        {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
           <div key={i} style={{ textAlign: "center", fontSize: 10, color: COLORS.muted }}>{d}</div>
         ))}
         {cells.map((d, i) => {

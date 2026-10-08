@@ -211,3 +211,10 @@ describe("dropsets", () => {
     expect(groupDrops([set(8, 45, true), set(6, 30, true)]).map((g) => g.drops.length)).toEqual([1]);
   });
 });
+
+describe("todayKey", () => {
+  it("utilise la date locale, pas UTC (minuit local reste le bon jour)", () => {
+    expect(todayKey(new Date(2026, 9, 1, 0, 30))).toBe("2026-10-01");
+    expect(todayKey(new Date(2026, 0, 9, 23, 59))).toBe("2026-01-09");
+  });
+});

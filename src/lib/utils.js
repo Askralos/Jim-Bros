@@ -1,4 +1,8 @@
-export const todayKey = (d = new Date()) => d.toISOString().slice(0, 10);
+// Date "YYYY-MM-DD" en heure LOCALE. Surtout pas toISOString() (UTC) : en France,
+// minuit local tombe encore la veille en UTC, ce qui décalait d'un jour le
+// calendrier (et datait de la veille une séance postée entre 0h et 2h).
+export const todayKey = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export const fmtDate = (key) => {
   const d = new Date(key + "T00:00:00");
