@@ -3,7 +3,7 @@ import { Camera, Dumbbell, X, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constants";
-import { exerciseSetHistoryByName, fmtDate } from "../lib/utils";
+import { exerciseSetHistoryByName, fmtDate, norm } from "../lib/utils";
 import { uploadPhoto } from "../lib/api/storage";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
 import { getUserHistory } from "../lib/api/sessions";
@@ -55,7 +55,7 @@ function ExerciseChart({ points, metric, onMetricChange }) {
 // avec un mini-graphique par exercice filtrable poids/reps. Toutes les séries sont
 // affichées (pas seulement la meilleure de chaque séance) — tout l'historique est
 // chargé à part (pas la fenêtre paginée du fil de séances).
-function ExerciseTrackingTab({ currentUserId }) {
+function ExerciseTrackingTab({ currentUserId, exerciseList }) {
   const [userHistory, setUserHistory] = useState(null);
   useEffect(() => { getUserHistory(currentUserId).then(setUserHistory); }, [currentUserId]);
 
@@ -63,15 +63,24 @@ function ExerciseTrackingTab({ currentUserId }) {
     () => (userHistory ? exerciseSetHistoryByName(userHistory.entries, userHistory.sessions, currentUserId) : {}),
     [userHistory, currentUserId]
   );
-  const names = Object.keys(history).sort((a, b) => a.localeCompare(b, "fr"));
+  // Les tags viennent de la bibliothèque (rapprochés par nom) pour filtrer comme
+  // dans l'onglet Exercices.
+  const tracked = useMemo(() => {
+    const tagsByName = new Map(exerciseList.map((e) => [norm(e.name), e.tags || []]));
+    return Object.keys(history).map((name) => ({ name, tags: tagsByName.get(norm(name)) || [] }));
+  }, [history, exerciseList]);
+  const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(tracked);
+  const names = filtered.map((e) => e.name);
   const [expanded, setExpanded] = useState(null);
   const [metric, setMetric] = useState("weight");
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Suivi {userHistory ? `(${names.length})` : ""}</h2>
+      <h2 style={styles.sectionTitle}>Suivi {userHistory ? `(${tracked.length})` : ""}</h2>
       {!userHistory && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
-      {userHistory && names.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore d'exercice en répétitions enregistré.</p>}
+      {userHistory && tracked.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore d'exercice en répétitions enregistré.</p>}
+      {tracked.length > 0 && <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} />}
+      {tracked.length > 0 && names.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun exercice ne correspond à ta recherche.</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {names.map((name) => {
           const points = history[name];
@@ -200,7 +209,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
           onCreate={onCreatePreset} onUpdate={onUpdatePreset} onDelete={onDeletePreset}
         />
       ) : tab === "tracking" ? (
-        <ExerciseTrackingTab currentUserId={currentUserId} />
+        <ExerciseTrackingTab currentUserId={currentUserId} exerciseList={exerciseList} />
       ) : (
         <>
           <h2 style={styles.sectionTitle}>Exercices ({exerciseList.length})</h2>
