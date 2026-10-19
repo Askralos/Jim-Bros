@@ -4,6 +4,7 @@ import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { fmtDate, computeProfileInsights } from "../lib/utils";
 import { getUserHistory } from "../lib/api/sessions";
+import { SessionHistoryList } from "./SessionTypes";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
 
@@ -129,16 +130,8 @@ function FriendProfileModal({ userId, profile, prs, onClose, onOpenSession }) {
         )}
 
         <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
-          {history && myEntries.slice(0, 15).map((e) => (
-            <div key={e.sessionId} style={styles.historyRow} onClick={() => onOpenSession(e.sessionId)}>
-              <span style={{ fontSize: 13 }}>{e.session.title || e.exercises.map((x) => x.name).join(", ")}</span>
-              <span style={{ fontSize: 11, color: COLORS.muted }}>{fmtDate(e.session.date)}</span>
-            </div>
-          ))}
-          {history && myEntries.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore de séance postée.</p>}
-        </div>
+        {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+        {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} limit={15} emptyText="Pas encore de séance postée." />}
       </div>
     </div>
   );

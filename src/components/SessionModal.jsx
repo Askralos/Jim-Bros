@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2, GitCompare } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets, groupDrops, formatSet } from "../lib/utils";
+import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets, groupDrops, formatSet, isSetFilled } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
 import { GuestPills } from "./GuestPicker";
+import { SessionTypePicker, SessionTypeBadges } from "./SessionTypes";
+import { FloatingTimer } from "./FloatingTimer";
 import { PresetsEditor } from "./PresetsEditor";
 import { ComparePicker, CompareReference } from "./CompareSession";
 import { uploadPhoto } from "../lib/api/storage";
@@ -70,6 +72,15 @@ function SetChip({ number, s, drops = [] }) {
     s.weightType === "bodyweight_plus" ? `PDC +${s.weight}kg` :
     s.weightType === "assisted" ? `PDC −${s.weight}kg` :
     `${s.weight}kg`;
+  if (!isSetFilled(s)) {
+    return (
+      <div style={{ ...cardStyle, background: "transparent", border: `1px dashed ${COLORS.line}` }}>
+        <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {number}</div>
+        <div style={{ fontSize: 12, color: COLORS.muted }}>à remplir</div>
+        {hasTarget && <div style={{ fontSize: 10.5, marginTop: 2, color: COLORS.muted }}>obj. {s.targetMin}-{s.targetMax}{isTime ? "s" : ""}</div>}
+      </div>
+    );
+  }
   return (
     <div style={cardStyle}>
       <div style={{ fontSize: 9.5, color: COLORS.muted, marginBottom: 2 }}>Série {number}{drops.length ? " · dropset" : ""}</div>
@@ -106,6 +117,9 @@ export function SessionModal({
           ...e,
           sets: e.sets.map((s) => ({
             ...s,
+            reps: s.reps ?? "",
+            seconds: s.seconds ?? "",
+            weight: s.weight ?? "",
             restSeconds: s.restSeconds ?? "",
             targetMin: s.targetMin ?? "",
             targetMax: s.targetMax ?? "",
@@ -117,6 +131,7 @@ export function SessionModal({
   const [formFeeling, setFormFeeling] = useState(myEntry?.feeling || null);
   const [formComment, setFormComment] = useState(myEntry?.comment || "");
   const [formTitle, setFormTitle] = useState(myEntry?.title || "");
+  const [formTypes, setFormTypes] = useState(myEntry?.sessionTypes || []);
   const [formPhoto, setFormPhoto] = useState(myEntry?.photo || null);
   const [uploadingEntry, setUploadingEntry] = useState(false);
   const [editMeta, setEditMeta] = useState({
@@ -223,6 +238,9 @@ export function SessionModal({
             </div>
           )}
 
+          <label style={styles.label}>Type de séance (optionnel)</label>
+          <SessionTypePicker value={formTypes} onChange={setFormTypes} />
+
           <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
           <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
 
@@ -271,6 +289,8 @@ export function SessionModal({
             onChange={(e) => setFormComment(e.target.value)}
           />
 
+          <FloatingTimer />
+
           {entryError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{entryError}</p>}
 
           <button
@@ -281,10 +301,13 @@ export function SessionModal({
               setSubmittingEntry(true);
               setEntryError("");
               try {
-                await onSubmitEntry(
-                  clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null, formFeeling, formComment,
-                  isCreator ? undefined : { title: formTitle, photo: formPhoto }
-                );
+                await onSubmitEntry(clean, {
+                  bodyweightKg: formBodyweightKg !== "" ? Number(formBodyweightKg) : null,
+                  feeling: formFeeling,
+                  comment: formComment,
+                  sessionTypes: formTypes,
+                  personal: isCreator ? undefined : { title: formTitle, photo: formPhoto },
+                });
                 setMode("view");
               } catch (e) {
                 setEntryError(e.message || "L'enregistrement a échoué. Réessaie.");
@@ -471,6 +494,7 @@ export function SessionModal({
                 <>
                   {entry ? (
                     <>
+                      {entry.sessionTypes?.length > 0 && <div style={{ marginBottom: 10 }}><SessionTypeBadges types={entry.sessionTypes} /></div>}
                       {groupSupersets(entry.exercises).map((block) => {
                         const renderEx = ({ ex, index }, inSuperset) => (
                           <div key={index} style={{ marginBottom: inSuperset ? 10 : 18 }}>

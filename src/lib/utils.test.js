@@ -14,6 +14,7 @@ import {
   groupDrops,
   formatSetWithDrops,
   personalizeSession,
+  isSetFilled,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -233,5 +234,17 @@ describe("personalizeSession (titre/photo perso)", () => {
 
   it("le créateur voit toujours la vraie séance", () => {
     expect(personalizeSession(session, "clara")).toMatchObject({ title: "Fullbody", photo: "cover.jpg" });
+  });
+});
+
+describe("séries à remplir (exercices préparés)", () => {
+  it("isSetFilled : une série sans reps (ou sans secondes en mode temps) est à remplir", () => {
+    expect(isSetFilled({ mode: "reps", reps: "" })).toBe(false);
+    expect(isSetFilled({ mode: "reps", reps: null })).toBe(false);
+    expect(isSetFilled({ mode: "reps", reps: 0 })).toBe(true);
+    expect(isSetFilled({ mode: "time", seconds: "", reps: 0 })).toBe(false);
+  });
+  it("formatSet affiche 'à remplir' plutôt que des valeurs vides", () => {
+    expect(formatSet({ mode: "reps", reps: null, weightType: "external", weight: null })).toBe("à remplir");
   });
 });

@@ -6,6 +6,8 @@ import { todayKey } from "../lib/utils";
 import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
 import { DurationInput } from "./DurationInput";
 import { GuestPills } from "./GuestPicker";
+import { SessionTypePicker } from "./SessionTypes";
+import { FloatingTimer } from "./FloatingTimer";
 import { ComparePicker, CompareReference } from "./CompareSession";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
@@ -20,6 +22,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
   const [uploading, setUploading] = useState(false);
   const [participants, setParticipants] = useState([]);
   const [guests, setGuests] = useState([]);
+  const [sessionTypes, setSessionTypes] = useState([]);
   const [exercises, setExercises] = useState(() => (initialExercises?.length ? initialExercises : [emptyExercise()]));
   const [bodyweightKg, setBodyweightKg] = useState("");
   const [touched, setTouched] = useState(false);
@@ -60,6 +63,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
           comment: comment.trim() || null,
           participantIds: participants,
           guestNames: guests,
+          sessionTypes,
           bodyweightKg: bodyweightKg !== "" ? Number(bodyweightKg) : null,
         },
         clean
@@ -94,6 +98,9 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
         <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <DurationInput valueMin={durationMin} onChange={setDurationMin} />
       </div>
+
+      <label style={styles.label}>Type de séance (optionnel)</label>
+      <SessionTypePicker value={sessionTypes} onChange={setSessionTypes} />
 
       <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
       <input style={styles.input} type="number" placeholder="Poids du jour" value={bodyweightKg} onChange={(e) => setBodyweightKg(e.target.value)} />
@@ -158,6 +165,8 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
         ))}
         <GuestPills guests={guests} onChange={setGuests} />
       </div>
+
+      <FloatingTimer />
 
       {submitError && <p style={{ color: COLORS.flame, fontSize: 13, marginTop: 10, marginBottom: -8 }}>{submitError}</p>}
 

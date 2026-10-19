@@ -1,26 +1,32 @@
 import { useState } from "react";
-import { Search, Dumbbell, X } from "lucide-react";
+import { Search, Dumbbell, X, Star } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, tagLabel, tagColor } from "../lib/constants";
 import { norm } from "../lib/utils";
+import { useFavorites, FavoriteStar } from "./Favorites";
 
 // Liste filtrable (recherche + un seul tag à la fois) réutilisée par ExercisePicker et
-// ExercisesLibrary.
-export function useExerciseFilter(exerciseList) {
+// ExercisesLibrary. withFavorites : les favoris remontent en tête de liste et un
+// filtre "Favoris" est proposé avant les tags.
+export const FAVORITES_FILTER = "__favoris";
+
+export function useExerciseFilter(exerciseList, { withFavorites = false } = {}) {
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState(null);
+  const { ids: favoriteIds } = useFavorites();
+  const isFav = (e) => withFavorites && favoriteIds.has(e.id);
 
   const toggleTag = (key) => setActiveTag((t) => (t === key ? null : key));
 
   const filtered = [...exerciseList]
     .filter((e) => norm(e.name).includes(norm(query)))
-    .filter((e) => !activeTag || (e.tags || []).includes(activeTag))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter((e) => !activeTag || (activeTag === FAVORITES_FILTER ? isFav(e) : (e.tags || []).includes(activeTag)))
+    .sort((a, b) => (isFav(b) - isFav(a)) || a.name.localeCompare(b.name));
 
-  return { query, setQuery, activeTag, toggleTag, filtered };
+  return { query, setQuery, activeTag, toggleTag, filtered, withFavorites };
 }
 
-export function ExerciseFilterBar({ query, setQuery, activeTag, toggleTag }) {
+export function ExerciseFilterBar({ query, setQuery, activeTag, toggleTag, withFavorites = false }) {
   return (
     <>
       <div style={{ position: "relative", marginBottom: 10 }}>
@@ -28,6 +34,11 @@ export function ExerciseFilterBar({ query, setQuery, activeTag, toggleTag }) {
         <Search size={15} color={COLORS.muted} style={{ position: "absolute", left: 11, top: 12 }} />
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        {withFavorites && (
+          <button onClick={() => toggleTag(FAVORITES_FILTER)} style={{ ...styles.tabPill, display: "inline-flex", alignItems: "center", gap: 4, ...(activeTag === FAVORITES_FILTER ? styles.tabPillActive : {}) }}>
+            <Star size={12} fill={activeTag === FAVORITES_FILTER ? "currentColor" : "none"} />Favoris
+          </button>
+        )}
         {EXERCISE_TAGS.map((t) => (
           <button key={t.key} onClick={() => toggleTag(t.key)} style={{ ...styles.tabPill, ...(activeTag === t.key ? styles.tabPillActive : {}) }}>
             {t.label}
@@ -76,13 +87,14 @@ export function ExerciseRowThumb({ exercise, onClick, size = 38 }) {
 // libre (datalist) pour garantir un exercice réellement répertorié.
 // En mode multi (superset), l'ordre des clics donne l'ordre d'enchaînement.
 export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false, onConfirmMulti, minSelect = 2, title }) {
-  const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
+  const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList, { withFavorites: true });
   const [selected, setSelected] = useState([]);
 
   const toggleSelected = (ex) => setSelected((s) => (s.includes(ex.id) ? s.filter((id) => id !== ex.id) : [...s, ex.id]));
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
+    // Au-dessus du chrono flottant (zIndex 60), qui lui passe au-dessus des autres modales.
+    <div style={{ ...styles.modalBackdrop, zIndex: 70 }} onClick={onClose}>
       <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
           <span style={{ fontWeight: 700 }}>{title || (multi ? "Exercices du superset" : "Choisir un exercice")}</span>
@@ -93,9 +105,13 @@ export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false,
             {minSelect > 1 ? `Sélectionne au moins ${minSelect} exercices, dans l'ordre où tu les enchaînes.` : "Sélectionne le ou les exercices à enchaîner, dans l'ordre."}
           </p>
         )}
-        <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} />
+        <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} withFavorites />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Aucun exercice ne correspond.</p>}
+          {filtered.length === 0 && (
+            <p style={{ color: COLORS.muted, fontSize: 13 }}>
+              {activeTag === FAVORITES_FILTER ? "Pas encore de favori : touche l'étoile d'un exercice pour l'ajouter." : "Aucun exercice ne correspond."}
+            </p>
+          )}
           {filtered.map((ex) => {
             const order = selected.indexOf(ex.id);
             const isSelected = order !== -1;
@@ -110,6 +126,7 @@ export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false,
                   <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
                   <TagBadges tags={ex.tags} />
                 </div>
+                <FavoriteStar exerciseId={ex.id} />
                 {isSelected && (
                   <span style={{ width: 22, height: 22, borderRadius: "50%", background: COLORS.lime, color: "#111214", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     {order + 1}

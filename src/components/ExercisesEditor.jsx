@@ -2,25 +2,26 @@ import { useState } from "react";
 import { X, Clock, Target, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, WEIGHT_TYPES } from "../lib/constants";
-import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
+import { groupSupersets, normalizeSupersets, chainExercises, isSetFilled } from "../lib/utils";
 import { ExercisePicker, ExerciseRowThumb } from "./ExercisePicker";
 
 export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "", isDrop: false };
 export const emptyExercise = () => ({ name: "", supersetGroup: null, sets: [{ ...EMPTY_SET }] });
 
+// Garde tout exercice choisi, même pas encore rempli (préparé depuis un preset ou
+// à l'avance) : ses séries vides sont enregistrées "à remplir" plutôt que perdues.
+// Seuls les drops vides sont retirés (un palier sans valeur n'a pas de sens).
 export function cleanExercises(exercises) {
   return normalizeSupersets(
     exercises
       .filter((ex) => ex.name.trim())
-      .map((ex) => ({
-        name: ex.name.trim(),
-        supersetGroup: ex.supersetGroup ?? null,
-        sets: ex.sets
-          .filter((s) => (s.mode === "time" ? s.seconds : s.reps))
-          // Un drop ne peut pas ouvrir l'exercice (sa série a pu être vidée).
-          .map((s, j) => (j === 0 && s.isDrop ? { ...s, isDrop: false } : s)),
-      }))
-      .filter((ex) => ex.sets.length)
+      .map((ex) => {
+        const sets = ex.sets
+          .filter((s) => !s.isDrop || isSetFilled(s))
+          // Un drop ne peut pas ouvrir l'exercice (sa série a pu être supprimée).
+          .map((s, j) => (j === 0 && s.isDrop ? { ...s, isDrop: false } : s));
+        return { name: ex.name.trim(), supersetGroup: ex.supersetGroup ?? null, sets: sets.length ? sets : [{ ...EMPTY_SET }] };
+      })
   );
 }
 

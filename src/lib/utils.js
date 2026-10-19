@@ -205,7 +205,7 @@ export function computeProfileInsights(userId, entries, sessions) {
   const byExo = {};
   [...myEntries].sort((a, b) => (a.session.date > b.session.date ? 1 : -1)).forEach((e) => {
     e.exercises.forEach((ex) => {
-      const best = Math.max(0, ...ex.sets.filter((s) => s.weightType === "external").map((s) => Number(s.weight) || 0));
+      const best = Math.max(0, ...ex.sets.filter((s) => s.weightType === "external" && isSetFilled(s)).map((s) => Number(s.weight) || 0));
       if (!best) return;
       if (!byExo[ex.name]) byExo[ex.name] = { first: best, best };
       else if (best > byExo[ex.name].best) byExo[ex.name].best = best;
@@ -220,10 +220,18 @@ export function computeProfileInsights(userId, entries, sessions) {
   return { myEntries, bestProgress };
 }
 
+// Une série est "faite" dès que sa valeur principale est saisie (reps, ou secondes en
+// mode temps). Sinon elle est "à remplir" (exercice prévu mais pas encore renseigné).
+export const isSetFilled = (s) => {
+  const v = s.mode === "time" ? s.seconds : s.reps;
+  return v !== "" && v != null;
+};
+
 // Formate une série pour un affichage compact ("10×50kg", "8 PDC+5kg", "45s"...).
 // Utilisé pour la comparaison avec une séance passée (pas besoin des infos
 // contextuelles complètes, juste une lecture rapide).
 export function formatSet(s) {
+  if (!isSetFilled(s)) return "à remplir";
   if (s.mode === "time") return `${s.seconds}s`;
   const suffix =
     s.weightType === "bodyweight" ? " PDC" :

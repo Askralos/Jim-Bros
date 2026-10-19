@@ -5,7 +5,7 @@ const SESSION_SELECT = `
   id, creator_id, title, date, duration_min, photo_url, created_at, guest_names,
   session_participants ( user_id ),
   session_entries (
-    id, user_id, title, photo_url, submitted_at, bodyweight_kg, feeling, comment,
+    id, user_id, title, photo_url, submitted_at, bodyweight_kg, feeling, comment, session_types,
     entry_exercises (
       id, exercise_name, position, superset_group,
       entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop )
@@ -40,6 +40,7 @@ function shapeSession(row) {
     entries[e.user_id] = {
       entryId: e.id, exercises: shapeExercises(e.entry_exercises), photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
       feeling: e.feeling || null, comment: e.comment || null, title: e.title || null,
+      sessionTypes: e.session_types || [],
     };
   });
   return {
@@ -102,7 +103,7 @@ export async function getSessionShells() {
 export async function getUserHistory(userId, { personalTitles = false } = {}) {
   const { data, error } = await supabase
     .from("session_entries")
-    .select("id, session_id, title, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop ) )")
+    .select("id, session_id, title, session_types, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop ) )")
     .eq("user_id", userId);
   if (error) throw error;
   const sessions = [];
@@ -110,7 +111,7 @@ export async function getUserHistory(userId, { personalTitles = false } = {}) {
     .filter((row) => row.sessions)
     .map((row) => {
       sessions.push({ id: row.sessions.id, date: row.sessions.date, title: (personalTitles && row.title) || row.sessions.title });
-      return { userId, sessionId: row.session_id, bodyweightKg: row.bodyweight_kg, exercises: shapeExercises(row.entry_exercises) };
+      return { userId, sessionId: row.session_id, bodyweightKg: row.bodyweight_kg, sessionTypes: row.session_types || [], exercises: shapeExercises(row.entry_exercises) };
     });
   return { entries, sessions };
 }
@@ -145,7 +146,7 @@ export async function getSessionCountsByUser() {
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
 // Le feeling/commentaire est propre au créateur (sa propre entrée), comme pour
 // chaque autre participant.
-export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, guestNames = [], bodyweightKg }, creatorId, ownExercises) {
+export async function createSession({ title, date, durationMin, photo, feeling, comment, participantIds, guestNames = [], bodyweightKg, sessionTypes }, creatorId, ownExercises) {
   const { data: session, error } = await supabase
     .from("sessions")
     .insert({
@@ -167,7 +168,7 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
     if (pErr) throw pErr;
   }
 
-  await writeEntry(session.id, creatorId, ownExercises, bodyweightKg, feeling, comment);
+  await writeEntry(session.id, creatorId, ownExercises, { bodyweightKg, feeling, comment, sessionTypes });
   return session.id;
 }
 
@@ -212,9 +213,10 @@ export async function deleteSession(sessionId) {
 // son propre feeling/commentaire, et éventuellement sa "version perso" de la séance
 // (titre/photo qui ne remplacent ceux de la séance que dans sa propre vue).
 // `personal` absent = on ne touche pas au titre/photo perso déjà enregistrés.
+// sessionTypes : type(s) de séance de ce participant (push, legs, pecs...).
 // Repart de zéro sur les exercices/séries à chaque sauvegarde : plus simple et plus
 // fiable qu'un diff, et le volume de données par séance reste minime.
-export async function writeEntry(sessionId, userId, exercises, bodyweightKg, feeling, comment, personal) {
+export async function writeEntry(sessionId, userId, exercises, { bodyweightKg, feeling, comment, personal, sessionTypes = [] } = {}) {
   const { data: entry, error } = await supabase
     .from("session_entries")
     .upsert(
@@ -223,6 +225,7 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
         bodyweight_kg: bodyweightKg !== "" && bodyweightKg != null ? Number(bodyweightKg) : null,
         feeling: feeling || null,
         comment: comment?.trim() || null,
+        session_types: sessionTypes,
         ...(personal ? { title: personal.title?.trim() || null, photo_url: personal.photo || null } : {}),
       },
       { onConflict: "session_id,user_id" }
@@ -258,8 +261,9 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
       const hasTarget = s.targetMin !== "" && s.targetMin != null && s.targetMax !== "" && s.targetMax != null;
       allSets.push({
         entry_exercise_id: entryExerciseId,
-        reps: mode === "time" ? 0 : Number(s.reps) || 0,
-        seconds: mode === "time" ? Number(s.seconds) || 0 : null,
+        // Série pas encore faite (exercice préparé) : valeur NULL = "à remplir".
+        reps: mode === "time" ? 0 : s.reps === "" || s.reps == null ? null : Number(s.reps) || 0,
+        seconds: mode === "time" ? (s.seconds === "" || s.seconds == null ? null : Number(s.seconds) || 0) : null,
         mode,
         weight_type: weightType,
         weight_kg: weightType === "bodyweight" ? null : (s.weight !== "" && s.weight != null ? Number(s.weight) : null),

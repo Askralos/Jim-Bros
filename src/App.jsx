@@ -7,6 +7,7 @@ import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
 import { createSession, editSession, deleteSession, writeEntry, deleteEntry, getSessionById } from "./lib/api/sessions";
 import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
 import { presetToExercises, personalizeSession } from "./lib/utils";
+import { FavoritesProvider } from "./components/Favorites";
 import { useAppData } from "./hooks/useAppData";
 
 import { AuthScreen } from "./components/AuthScreen";
@@ -95,6 +96,7 @@ export default function App() {
   }
 
   return (
+    <FavoritesProvider userId={userId} profile={profile}>
     <div style={styles.app}>
       <TopBar profile={profile} />
       <div style={styles.content}>
@@ -195,12 +197,13 @@ export default function App() {
           onUpdatePreset={handleUpdatePreset}
           onDeletePreset={handleDeletePreset}
           onClose={() => setModalSessionId(null)}
-          onSubmitEntry={async (ex, bodyweightKg, feeling, comment, personal) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment, personal); await refreshSessions([modalSession.id]); }}
+          onSubmitEntry={async (ex, details) => { await writeEntry(modalSession.id, userId, ex, details); await refreshSessions([modalSession.id]); }}
           onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refreshSessions([modalSession.id]); }}
           onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refreshSessions([modalSession.id]); }}
           onDeleteSession={async () => { const id = modalSession.id; await deleteSession(id); setModalSessionId(null); await refreshSessions([id]); }}
         />
       )}
     </div>
+    </FavoritesProvider>
   );
 }

@@ -34,6 +34,18 @@ export const EXERCISE_TAGS = [
   { key: "pliometrie", label: "Pliométrie", color: "#845EF7" },
 ];
 
+// Type de séance (propre à chaque participant) : le split, puis les muscles (mêmes
+// clés que les tags d'exercices). Sert à trier/filtrer son historique.
+export const SESSION_SPLITS = [
+  { key: "push", label: "Push" },
+  { key: "pull", label: "Pull" },
+  { key: "legs", label: "Legs" },
+  { key: "upper", label: "Upper" },
+  { key: "lower", label: "Lower" },
+  { key: "fullbody", label: "Full body" },
+];
+export const sessionTypeLabel = (key) => SESSION_SPLITS.find((t) => t.key === key)?.label || tagLabel(key);
+
 export const tagLabel = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.label || key;
 export const tagColor = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.color || COLORS.muted;
 

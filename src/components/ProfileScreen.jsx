@@ -9,6 +9,7 @@ import { MetricCard } from "./MetricCard";
 import { uploadPhoto } from "../lib/api/storage";
 import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
 import { getUserHistory } from "../lib/api/sessions";
+import { SessionHistoryList } from "./SessionTypes";
 
 export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSave, onAddPr, onDeletePr, onOpenSession, onRefresh }) {
   const [form, setForm] = useState(profile);
@@ -137,15 +138,8 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
       <PrSection prs={prs} exerciseList={exerciseList} onAdd={onAddPr} onDelete={onDeletePr} />
 
       <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
-        {history && myEntries.map((e) => (
-          <div key={e.sessionId} style={styles.historyRow} onClick={() => onOpenSession(e.sessionId)}>
-            <span style={{ fontSize: 13 }}>{e.session.title || e.exercises.map((x) => x.name).join(", ")}</span>
-            <span style={{ fontSize: 11, color: COLORS.muted }}>{fmtDate(e.session.date)}</span>
-          </div>
-        ))}
-      </div>
+      {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+      {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} />}
 
       {showWeightModal && (
         <WeightModal

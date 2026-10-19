@@ -9,6 +9,7 @@ import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercise
 import { getUserHistory } from "../lib/api/sessions";
 import { useExerciseFilter, ExerciseFilterBar, TagBadges } from "./ExercisePicker";
 import { PresetsEditor } from "./PresetsEditor";
+import { FavoriteStar } from "./Favorites";
 
 const TRACK_METRICS = [
   { key: "weight", label: "Poids", unit: "kg" },
@@ -184,7 +185,7 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
 
 export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername, profiles, onRefresh, presets, onCreatePreset, onUpdatePreset, onDeletePreset }) {
   const [tab, setTab] = useState("library");
-  const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList);
+  const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList, { withFavorites: true });
   const [formTarget, setFormTarget] = useState(null); // "new" = création, sinon l'exercice édité, null = fermé
   const [preview, setPreview] = useState(null);
   const canManage = EXERCISE_ADMIN_USERNAMES.includes(currentUsername);
@@ -213,7 +214,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
       ) : (
         <>
           <h2 style={styles.sectionTitle}>Exercices ({exerciseList.length})</h2>
-          <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} />
+          <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} withFavorites />
 
           <button style={styles.secondaryBtn} onClick={() => setFormTarget("new")}>+ Ajouter un exercice</button>
 
@@ -235,6 +236,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
                     <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
                     <TagBadges tags={ex.tags} />
                   </div>
+                  <FavoriteStar exerciseId={ex.id} />
                   {canManage && (
                     <div style={{ display: "flex", gap: 2 }}>
                       <button style={styles.iconBtn} onClick={() => setFormTarget(ex)} aria-label="Modifier"><Pencil size={15} /></button>
