@@ -98,7 +98,36 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
       <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
       <input style={styles.input} type="number" placeholder="Poids du jour" value={bodyweightKg} onChange={(e) => setBodyweightKg(e.target.value)} />
 
-      <label style={styles.label}>Ton feeling (optionnel)</label>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
+        <span style={styles.label}>Tes exercices</span>
+        {!compareSession && (
+          <button style={{ ...styles.linkBtn, display: "flex", alignItems: "center", gap: 4 }} onClick={() => setShowComparePicker(true)}>
+            <GitCompare size={13} />Comparer
+          </button>
+        )}
+      </div>
+
+      {compareSession && (
+        <CompareReference
+          session={compareSession}
+          currentUserId={currentUserId}
+          onChange={() => setShowComparePicker(true)}
+          onRemove={() => setCompareSessionId(null)}
+        />
+      )}
+
+      <ExercisesEditor exercises={exercises} onChange={setExercises} exerciseList={exerciseList} />
+
+      {showComparePicker && (
+        <ComparePicker
+          sessions={sessions}
+          currentUserId={currentUserId}
+          onClose={() => setShowComparePicker(false)}
+          onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
+        />
+      )}
+
+      <label style={{ ...styles.label, display: "block", marginTop: 18 }}>Ton feeling (optionnel)</label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
         {SESSION_FEELINGS.map((f) => (
           <button
@@ -129,35 +158,6 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
         ))}
         <GuestPills guests={guests} onChange={setGuests} />
       </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
-        <span style={styles.label}>Tes exercices</span>
-        {!compareSession && (
-          <button style={{ ...styles.linkBtn, display: "flex", alignItems: "center", gap: 4 }} onClick={() => setShowComparePicker(true)}>
-            <GitCompare size={13} />Comparer
-          </button>
-        )}
-      </div>
-
-      {compareSession && (
-        <CompareReference
-          session={compareSession}
-          currentUserId={currentUserId}
-          onChange={() => setShowComparePicker(true)}
-          onRemove={() => setCompareSessionId(null)}
-        />
-      )}
-
-      <ExercisesEditor exercises={exercises} onChange={setExercises} exerciseList={exerciseList} />
-
-      {showComparePicker && (
-        <ComparePicker
-          sessions={sessions}
-          currentUserId={currentUserId}
-          onClose={() => setShowComparePicker(false)}
-          onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
-        />
-      )}
 
       {submitError && <p style={{ color: COLORS.flame, fontSize: 13, marginTop: 10, marginBottom: -8 }}>{submitError}</p>}
 
