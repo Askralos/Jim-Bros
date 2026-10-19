@@ -12,16 +12,32 @@ import { ComparePicker, CompareReference } from "./CompareSession";
 import { uploadPhoto } from "../lib/api/storage";
 import { getLatestWeight } from "../lib/api/profiles";
 
-// Une seule photo par séance (la photo de couverture) — modifiable uniquement via
-// "Modifier la séance" pour éviter la confusion avec un ancien système à 2 photos.
+// Photo(s) de la séance : la principale (ma photo perso si j'en ai mis une, sinon
+// celle de la séance), puis celles des autres participants en miniatures pour
+// basculer de l'une à l'autre.
 // object-fit: contain (plutôt que cover en 4/3 fixe) : chacun cadre sa photo comme
 // il veut, on affiche donc la photo entière plutôt que d'en cacher des morceaux
 // avec un recadrage forcé.
-function SessionPhoto({ photo }) {
-  if (!photo) return null;
+function SessionPhoto({ photos }) {
+  const [idx, setIdx] = useState(0);
+  if (!photos.length) return null;
+  const cur = photos[Math.min(idx, photos.length - 1)];
   return (
-    <div style={{ marginBottom: 10, background: COLORS.surface2, borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
-      <img src={photo} alt="" style={{ display: "block", width: "100%", maxHeight: "55vh", objectFit: "contain", borderRadius: 10 }} />
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ background: COLORS.surface2, borderRadius: 10, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
+        <img src={cur.url} alt="" style={{ display: "block", width: "100%", maxHeight: "55vh", objectFit: "contain", borderRadius: 10 }} />
+      </div>
+      {photos.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+          {photos.map((p, i) => (
+            <img
+              key={p.url} src={p.url} alt="" loading="lazy" onClick={() => setIdx(i)}
+              style={{ width: 38, height: 38, objectFit: "cover", borderRadius: 7, cursor: "pointer", opacity: p === cur ? 1 : 0.5, border: p === cur ? `2px solid ${COLORS.lime}` : "2px solid transparent" }}
+            />
+          ))}
+          <span style={{ fontSize: 11, color: COLORS.muted, marginLeft: 4 }}>{cur.label}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -100,9 +116,12 @@ export function SessionModal({
   const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
   const [formFeeling, setFormFeeling] = useState(myEntry?.feeling || null);
   const [formComment, setFormComment] = useState(myEntry?.comment || "");
+  const [formTitle, setFormTitle] = useState(myEntry?.title || "");
+  const [formPhoto, setFormPhoto] = useState(myEntry?.photo || null);
+  const [uploadingEntry, setUploadingEntry] = useState(false);
   const [editMeta, setEditMeta] = useState({
-    title: session.title || "", date: session.date, durationMin: session.durationMin || "",
-    photo: session.photo || null,
+    title: (session.sharedTitle ?? session.title) || "", date: session.date, durationMin: session.durationMin || "",
+    photo: (session.sharedPhoto ?? session.photo) || null,
     participants: session.participants.filter((u) => u !== session.creator),
     guests: session.guests || [],
   });
@@ -118,6 +137,8 @@ export function SessionModal({
   const compareSession = sessions.find((s) => s.id === compareSessionId) || null;
   const editFileRef = useRef(null);
   const editGalleryRef = useRef(null);
+  const entryFileRef = useRef(null);
+  const entryGalleryRef = useRef(null);
 
   useEffect(() => {
     if (myEntry?.bodyweightKg == null) {
@@ -128,6 +149,14 @@ export function SessionModal({
 
   const participants = session.participants;
   const isCreator = currentUserId === session.creator;
+  // La mienne d'abord (session.photo = ma photo perso s'il y en a une), puis celle de
+  // la séance, puis les photos perso des autres participants.
+  const photos = [];
+  const addPhoto = (url, label) => { if (url && !photos.some((p) => p.url === url)) photos.push({ url, label }); };
+  const nameOf = (id) => (id === currentUserId ? "toi" : profiles[id]?.display_name || "?");
+  addPhoto(session.photo, session.photo !== session.sharedPhoto ? "Ta photo" : `Photo de ${nameOf(session.creator)}`);
+  addPhoto(session.sharedPhoto, `Photo de ${nameOf(session.creator)}`);
+  participants.forEach((id) => addPhoto(session.entries[id]?.photo, `Photo de ${nameOf(id)}`));
 
   const handleEditPhoto = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -136,6 +165,11 @@ export function SessionModal({
       const url = await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 });
       setEditMeta((m) => ({ ...m, photo: url }));
     } finally { setUploadingSession(false); }
+  };
+  const handleEntryPhoto = async (e) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setUploadingEntry(true);
+    try { setFormPhoto(await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 })); } finally { setUploadingEntry(false); }
   };
   const toggleEditParticipant = (id) => {
     setEditMeta((m) => ({ ...m, participants: m.participants.includes(id) ? m.participants.filter((x) => x !== id) : [...m.participants, id] }));
@@ -163,6 +197,31 @@ export function SessionModal({
               <button style={styles.iconBtn} onClick={() => setMode("view")}><X size={16} /></button>
             </div>
           </div>
+
+          {!isCreator && (
+            <div style={{ background: COLORS.surface2, borderRadius: 10, padding: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, display: "block" }}>Ta version de la séance (optionnel)</span>
+              <span style={{ fontSize: 11, color: COLORS.muted, display: "block", marginBottom: 8 }}>
+                Titre et photo visibles seulement par toi{session.sharedTitle ? ` : les autres voient toujours « ${session.sharedTitle} »` : ""}.
+              </span>
+              <input style={styles.input} placeholder={session.sharedTitle ? `Ton titre (ex: Legs au lieu de ${session.sharedTitle})` : "Ton titre (ex: Legs)"} value={formTitle} onChange={(e) => setFormTitle(e.target.value)} />
+              <div style={{ ...styles.photoZone, marginBottom: 6 }} onClick={() => entryFileRef.current?.click()}>
+                {formPhoto ? (
+                  <img src={formPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
+                    <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingEntry ? "Envoi..." : "Ta photo (optionnel)"}</span>
+                  </div>
+                )}
+              </div>
+              <input ref={entryFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEntryPhoto} />
+              <input ref={entryGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEntryPhoto} />
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <button style={styles.linkBtn} onClick={() => entryGalleryRef.current?.click()}>ou choisir depuis la galerie</button>
+                {formPhoto && <button style={styles.linkBtn} onClick={() => setFormPhoto(null)}>Retirer la photo</button>}
+              </div>
+            </div>
+          )}
 
           <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
           <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
@@ -216,13 +275,16 @@ export function SessionModal({
 
           <button
             style={styles.primaryBtn}
-            disabled={!clean.length || submittingEntry}
+            disabled={!clean.length || submittingEntry || uploadingEntry}
             onClick={async () => {
               if (submittingEntry) return;
               setSubmittingEntry(true);
               setEntryError("");
               try {
-                await onSubmitEntry(clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null, formFeeling, formComment);
+                await onSubmitEntry(
+                  clean, formBodyweightKg !== "" ? Number(formBodyweightKg) : null, formFeeling, formComment,
+                  isCreator ? undefined : { title: formTitle, photo: formPhoto }
+                );
                 setMode("view");
               } catch (e) {
                 setEntryError(e.message || "L'enregistrement a échoué. Réessaie.");
@@ -363,10 +425,15 @@ export function SessionModal({
     <div style={styles.modalBackdrop} onClick={onClose}>
       <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>{session.title || "Séance"}</span>
+          <div style={{ minWidth: 0 }}>
+            <span style={{ fontWeight: 700, display: "block" }}>{session.title || "Séance"}</span>
+            {session.sharedTitle && session.title !== session.sharedTitle && (
+              <span style={{ fontSize: 11, color: COLORS.muted }}>Séance de {profiles[session.creator]?.display_name || "?"} : {session.sharedTitle}</span>
+            )}
+          </div>
           <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
         </div>
-        <SessionPhoto photo={session.photo} />
+        <SessionPhoto photos={photos} />
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
             <Calendar size={13} />{fmtDate(session.date)}

@@ -5,7 +5,7 @@ const SESSION_SELECT = `
   id, creator_id, title, date, duration_min, photo_url, created_at, guest_names,
   session_participants ( user_id ),
   session_entries (
-    id, user_id, photo_url, submitted_at, bodyweight_kg, feeling, comment,
+    id, user_id, title, photo_url, submitted_at, bodyweight_kg, feeling, comment,
     entry_exercises (
       id, exercise_name, position, superset_group,
       entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop )
@@ -39,7 +39,7 @@ function shapeSession(row) {
   (row.session_entries || []).forEach((e) => {
     entries[e.user_id] = {
       entryId: e.id, exercises: shapeExercises(e.entry_exercises), photo: e.photo_url, submittedAt: e.submitted_at, bodyweightKg: e.bodyweight_kg,
-      feeling: e.feeling || null, comment: e.comment || null,
+      feeling: e.feeling || null, comment: e.comment || null, title: e.title || null,
     };
   });
   return {
@@ -97,17 +97,19 @@ export async function getSessionShells() {
 // Historique complet (toutes séances confondues) d'un seul user, pour les écrans
 // qui ont besoin de tout son passif (progression, suivi par exercice) sans avoir
 // à charger le détail de TOUT le monde sur TOUTES les séances comme getSessions().
-export async function getUserHistory(userId) {
+// personalTitles : affiche le titre perso du user à la place de celui de la séance
+// (uniquement pour sa propre vue — sur le profil d'un pote on garde le vrai titre).
+export async function getUserHistory(userId, { personalTitles = false } = {}) {
   const { data, error } = await supabase
     .from("session_entries")
-    .select("id, session_id, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop ) )")
+    .select("id, session_id, title, bodyweight_kg, sessions ( id, date, title ), entry_exercises ( id, exercise_name, position, superset_group, entry_sets ( reps, weight_kg, weight_type, mode, seconds, rest_seconds, target_reps_min, target_reps_max, position, is_drop ) )")
     .eq("user_id", userId);
   if (error) throw error;
   const sessions = [];
   const entries = data
     .filter((row) => row.sessions)
     .map((row) => {
-      sessions.push({ id: row.sessions.id, date: row.sessions.date, title: row.sessions.title });
+      sessions.push({ id: row.sessions.id, date: row.sessions.date, title: (personalTitles && row.title) || row.sessions.title });
       return { userId, sessionId: row.session_id, bodyweightKg: row.bodyweight_kg, exercises: shapeExercises(row.entry_exercises) };
     });
   return { entries, sessions };
@@ -207,11 +209,12 @@ export async function deleteSession(sessionId) {
 }
 
 // Écrit (ou remplace) les stats d'un participant pour une séance donnée, y compris
-// son propre feeling/commentaire (chacun le sien, contrairement au titre/photo qui
-// restent partagés au niveau de la séance).
+// son propre feeling/commentaire, et éventuellement sa "version perso" de la séance
+// (titre/photo qui ne remplacent ceux de la séance que dans sa propre vue).
+// `personal` absent = on ne touche pas au titre/photo perso déjà enregistrés.
 // Repart de zéro sur les exercices/séries à chaque sauvegarde : plus simple et plus
 // fiable qu'un diff, et le volume de données par séance reste minime.
-export async function writeEntry(sessionId, userId, exercises, bodyweightKg, feeling, comment) {
+export async function writeEntry(sessionId, userId, exercises, bodyweightKg, feeling, comment, personal) {
   const { data: entry, error } = await supabase
     .from("session_entries")
     .upsert(
@@ -220,6 +223,7 @@ export async function writeEntry(sessionId, userId, exercises, bodyweightKg, fee
         bodyweight_kg: bodyweightKg !== "" && bodyweightKg != null ? Number(bodyweightKg) : null,
         feeling: feeling || null,
         comment: comment?.trim() || null,
+        ...(personal ? { title: personal.title?.trim() || null, photo_url: personal.photo || null } : {}),
       },
       { onConflict: "session_id,user_id" }
     )

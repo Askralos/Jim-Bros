@@ -99,6 +99,22 @@ export function groupDrops(sets) {
 // Résumé compact d'une série et de ses drops : "10×60kg → 8×45kg → 6×30kg".
 export const formatSetWithDrops = (group) => [group.set, ...group.drops.map((d) => d.set)].map(formatSet).join(" → ");
 
+// Vue perso d'une séance : un participant peut donner son propre titre/photo à une
+// séance créée par un autre (ex: "Legs" dans une séance "Fullbody"). Ils ne
+// remplacent ceux de la séance que pour lui ; sharedTitle/sharedPhoto gardent les
+// vrais (formulaire "Modifier la séance", rappel du titre d'origine).
+// Le créateur n'a pas de version perso : il modifie directement la séance.
+export function personalizeSession(session, userId) {
+  const mine = userId !== session.creator ? session.entries?.[userId] : null;
+  return {
+    ...session,
+    title: mine?.title || session.title,
+    photo: mine?.photo || session.photo,
+    sharedTitle: session.title,
+    sharedPhoto: session.photo,
+  };
+}
+
 // Ordre du fil : date décroissante, puis heure de publication décroissante.
 const sessionOrder = (a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1);
 

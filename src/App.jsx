@@ -6,7 +6,7 @@ import { getSession, onAuthStateChange } from "./lib/api/auth";
 import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
 import { createSession, editSession, deleteSession, writeEntry, deleteEntry, getSessionById } from "./lib/api/sessions";
 import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
-import { presetToExercises } from "./lib/utils";
+import { presetToExercises, personalizeSession } from "./lib/utils";
 import { useAppData } from "./hooks/useAppData";
 
 import { AuthScreen } from "./components/AuthScreen";
@@ -45,9 +45,11 @@ export default function App() {
 
   const userId = authSession?.user?.id || null;
   const {
-    profiles, sessions, hasMoreSessions, loadMoreSessions, sessionShells, sessionCounts,
+    profiles, sessions: rawSessions, hasMoreSessions, loadMoreSessions, sessionShells, sessionCounts,
     exercises, prs, presets, entries, loading, refreshSessions, refreshData,
   } = useAppData(userId);
+  // Chaque séance vue avec mon titre/ma photo perso s'il y en a (voir personalizeSession).
+  const sessions = useMemo(() => rawSessions.map((s) => personalizeSession(s, userId)), [rawSessions, userId]);
 
   const prsByUser = useMemo(() => {
     const map = {};
@@ -65,7 +67,7 @@ export default function App() {
     if (!modalSessionId || modalSessionInWindow) { setFetchedModalSession(null); return; }
     getSessionById(modalSessionId).then(setFetchedModalSession);
   }, [modalSessionId, modalSessionInWindow]);
-  const modalSession = modalSessionInWindow || (fetchedModalSession?.id === modalSessionId ? fetchedModalSession : null);
+  const modalSession = modalSessionInWindow || (fetchedModalSession?.id === modalSessionId ? personalizeSession(fetchedModalSession, userId) : null);
 
   const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refreshData("presets"); };
   const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refreshData("presets"); };
@@ -193,7 +195,7 @@ export default function App() {
           onUpdatePreset={handleUpdatePreset}
           onDeletePreset={handleDeletePreset}
           onClose={() => setModalSessionId(null)}
-          onSubmitEntry={async (ex, bodyweightKg, feeling, comment) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment); await refreshSessions([modalSession.id]); }}
+          onSubmitEntry={async (ex, bodyweightKg, feeling, comment, personal) => { await writeEntry(modalSession.id, userId, ex, bodyweightKg, feeling, comment, personal); await refreshSessions([modalSession.id]); }}
           onDeleteEntry={async () => { await deleteEntry(modalSession.id, userId); await refreshSessions([modalSession.id]); }}
           onEditSession={async (payload) => { await editSession(modalSession.id, payload); await refreshSessions([modalSession.id]); }}
           onDeleteSession={async () => { const id = modalSession.id; await deleteSession(id); setModalSessionId(null); await refreshSessions([id]); }}

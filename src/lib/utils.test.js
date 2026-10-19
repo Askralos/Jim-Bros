@@ -13,6 +13,7 @@ import {
   mergeSessions,
   groupDrops,
   formatSetWithDrops,
+  personalizeSession,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -216,5 +217,21 @@ describe("todayKey", () => {
   it("utilise la date locale, pas UTC (minuit local reste le bon jour)", () => {
     expect(todayKey(new Date(2026, 9, 1, 0, 30))).toBe("2026-10-01");
     expect(todayKey(new Date(2026, 0, 9, 23, 59))).toBe("2026-01-09");
+  });
+});
+
+describe("personalizeSession (titre/photo perso)", () => {
+  const session = {
+    creator: "clara", title: "Fullbody", photo: "cover.jpg",
+    entries: { clara: { title: null, photo: "old.jpg" }, me: { title: "Legs", photo: "mine.jpg" }, bob: { title: null, photo: null } },
+  };
+
+  it("remplace titre et photo dans ma vue seulement", () => {
+    expect(personalizeSession(session, "me")).toMatchObject({ title: "Legs", photo: "mine.jpg", sharedTitle: "Fullbody", sharedPhoto: "cover.jpg" });
+    expect(personalizeSession(session, "bob")).toMatchObject({ title: "Fullbody", photo: "cover.jpg" });
+  });
+
+  it("le créateur voit toujours la vraie séance", () => {
+    expect(personalizeSession(session, "clara")).toMatchObject({ title: "Fullbody", photo: "cover.jpg" });
   });
 });

@@ -27,7 +27,7 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
   }, [currentUserId]);
 
   useEffect(() => { loadWeightHistory(); }, [loadWeightHistory]);
-  useEffect(() => { getUserHistory(currentUserId).then(setHistory); }, [currentUserId]);
+  useEffect(() => { getUserHistory(currentUserId, { personalTitles: true }).then(setHistory); }, [currentUserId]);
   useEffect(() => { setForm(profile); }, [profile.weight_kg, profile.body_fat_pct, profile.objectif, profile.avatar_url, profile.arm_cm, profile.chest_cm, profile.waist_cm, profile.thigh_cm]);
 
   const { myEntries, bestProgress } = useMemo(
