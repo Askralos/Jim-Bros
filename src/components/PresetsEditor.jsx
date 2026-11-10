@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Pencil, Trash2, ChevronDown, ChevronUp, Clock, Target, Link2, Copy, Check } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
-import { groupSupersets, normalizeSupersets, chainExercises } from "../lib/utils";
+import { groupSupersets, normalizeSupersets, chainExercises, moveExercise } from "../lib/utils";
 import { ExercisePicker } from "./ExercisePicker";
 import { Avatar } from "./Avatar";
 
@@ -97,24 +97,7 @@ export function PresetsEditor({ exerciseList, currentUserId, profiles = {}, pres
     setExercises((xs) => chainExercises(xs, i, picked.map((e) => ({ ...emptyPresetExercise(), name: e.name }))));
   const ungroup = (group) => setExercises((xs) => xs.map((x) => (x.supersetGroup === group ? { ...x, supersetGroup: null } : x)));
 
-  // Réordonne sans supprimer/recréer. Dans un superset, on permute avec le voisin du
-  // même superset ; sinon le bloc entier (exercice seul ou superset) passe devant/
-  // derrière le bloc voisin, pour ne jamais casser un superset en deux.
-  const moveExAt = (i, dir) => setExercises((xs) => {
-    const j = i + dir;
-    if (j < 0 || j >= xs.length) return xs;
-    if (xs[i].supersetGroup != null && xs[i].supersetGroup === xs[j].supersetGroup) {
-      const arr = [...xs];
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-      return arr;
-    }
-    const blocks = groupSupersets(xs);
-    const b = blocks.findIndex((bl) => bl.items.some((it) => it.index === i));
-    const c = b + dir;
-    if (c < 0 || c >= blocks.length) return xs;
-    [blocks[b], blocks[c]] = [blocks[c], blocks[b]];
-    return blocks.flatMap((bl) => bl.items.map((it) => it.ex));
-  });
+  const moveExAt = (i, dir) => setExercises((xs) => moveExercise(xs, i, dir));
 
   const toggleReveal = (setter, i) => setter((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n; });
   const clearRest = (i) => { updateExAt(i, { restSeconds: "" }); toggleReveal(setRevealRest, i); };

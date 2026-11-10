@@ -15,6 +15,7 @@ import {
   formatSetWithDrops,
   personalizeSession,
   isSetFilled,
+  moveExercise,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -246,5 +247,24 @@ describe("séries à remplir (exercices préparés)", () => {
   });
   it("formatSet affiche 'à remplir' plutôt que des valeurs vides", () => {
     expect(formatSet({ mode: "reps", reps: null, weightType: "external", weight: null })).toBe("à remplir");
+  });
+});
+
+describe("moveExercise (réordonner)", () => {
+  const ex = (name, supersetGroup = null) => ({ name, supersetGroup });
+  const names = (list) => list.map((e) => `${e.name}:${e.supersetGroup ?? "-"}`);
+
+  it("échange deux exercices classiques", () => {
+    expect(names(moveExercise([ex("A"), ex("B"), ex("C")], 2, -1))).toEqual(["A:-", "C:-", "B:-"]);
+  });
+  it("déplace un superset entier comme un bloc", () => {
+    expect(names(moveExercise([ex("A"), ex("B", 1), ex("C", 1)], 0, 1))).toEqual(["B:1", "C:1", "A:-"]);
+  });
+  it("à l'intérieur d'un superset, permute avec le voisin du superset", () => {
+    expect(names(moveExercise([ex("B", 1), ex("C", 1), ex("A")], 1, -1))).toEqual(["C:1", "B:1", "A:-"]);
+  });
+  it("ne bouge pas au-delà des bords", () => {
+    const list = [ex("A"), ex("B")];
+    expect(moveExercise(list, 0, -1)).toBe(list);
   });
 });

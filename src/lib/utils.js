@@ -82,6 +82,25 @@ export function chainExercises(list, i, newItems) {
   return normalizeSupersets(next);
 }
 
+// Monte (dir -1) ou descend (dir 1) l'exercice i sans casser les supersets : dans un
+// superset, il permute avec son voisin du même superset ; sinon son bloc entier
+// (exercice seul ou superset complet) passe devant/derrière le bloc voisin.
+export function moveExercise(list, i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= list.length) return list;
+  if (list[i].supersetGroup != null && list[i].supersetGroup === list[j].supersetGroup) {
+    const arr = [...list];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return arr;
+  }
+  const blocks = groupSupersets(list);
+  const b = blocks.findIndex((bl) => bl.items.some((it) => it.index === i));
+  const c = b + dir;
+  if (c < 0 || c >= blocks.length) return list;
+  [blocks[b], blocks[c]] = [blocks[c], blocks[b]];
+  return blocks.flatMap((bl) => bl.items.map((it) => it.ex));
+}
+
 // Dropsets : chaque série (isDrop false) suivie de ses paliers (isDrop true).
 // Renvoie [{ set, number, index, drops: [{ set, index }] }] ; number = numéro de série
 // affiché (les drops ne comptent pas), index = position dans le tableau d'origine.

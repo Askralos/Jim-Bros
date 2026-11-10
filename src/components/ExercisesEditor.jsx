@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { X, Clock, Target, Link2 } from "lucide-react";
+import { X, Clock, Target, Link2, ChevronUp, ChevronDown } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, WEIGHT_TYPES } from "../lib/constants";
-import { groupSupersets, normalizeSupersets, chainExercises, isSetFilled } from "../lib/utils";
+import { groupSupersets, normalizeSupersets, chainExercises, isSetFilled, moveExercise } from "../lib/utils";
 import { ExercisePicker, ExerciseRowThumb } from "./ExercisePicker";
 
 export const EMPTY_SET = { reps: "", weight: "", weightType: "external", mode: "reps", seconds: "", restSeconds: "", targetMin: "", targetMax: "", isDrop: false };
@@ -43,6 +43,13 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
   const chainAt = (i, picked) =>
     onChange(chainExercises(exercises, i, picked.map((e) => ({ name: e.name, supersetGroup: null, sets: [{ ...EMPTY_SET }] }))));
   // Un superset réduit à un seul exercice redevient un exercice classique.
+  // Les champs révélés (repos/objectif vides) sont repérés par position : on les
+  // replie au déplacement pour qu'ils ne se retrouvent pas sur un autre exercice.
+  const moveExerciseAt = (i, dir) => {
+    setRevealRest(new Set());
+    setRevealTarget(new Set());
+    onChange(moveExercise(exercises, i, dir));
+  };
   const removeExercise = (i) => onChange(normalizeSupersets(exercises.filter((_, idx) => idx !== i)));
   const ungroup = (group) => onChange(exercises.map((ex) => (ex.supersetGroup === group ? { ...ex, supersetGroup: null } : ex)));
   // Nouvelle série = copie de la dernière vraie série (pas d'un drop).
@@ -125,6 +132,16 @@ export function ExercisesEditor({ exercises, onChange, exerciseList }) {
             </div>
           )}
           {exercises.length > 1 && <button style={styles.iconBtn} onClick={() => removeExercise(i)}><X size={15} /></button>}
+          {exercises.length > 1 && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === 0} onClick={() => moveExerciseAt(i, -1)} aria-label="Monter">
+                <ChevronUp size={15} color={i === 0 ? COLORS.line : COLORS.muted} />
+              </button>
+              <button style={{ ...styles.iconBtn, padding: 1 }} disabled={i === exercises.length - 1} onClick={() => moveExerciseAt(i, 1)} aria-label="Descendre">
+                <ChevronDown size={15} color={i === exercises.length - 1 ? COLORS.line : COLORS.muted} />
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
