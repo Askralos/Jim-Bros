@@ -49,8 +49,10 @@ export const sessionTypeLabel = (key) => SESSION_SPLITS.find((t) => t.key === ke
 export const tagLabel = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.label || key;
 export const tagColor = (key) => EXERCISE_TAGS.find((t) => t.key === key)?.color || COLORS.muted;
 
-// Seuls ces pseudos peuvent modifier/supprimer un exercice de la bibliothèque partagée.
-export const EXERCISE_ADMIN_USERNAMES = ["ludo", "siweil"];
+// Admins de la squad : eux seuls peuvent modifier/supprimer un exercice de la
+// bibliothèque partagée et réinitialiser le mot de passe d'un membre (vérifié aussi
+// côté base : policies RLS et fonction admin_reset_password).
+export const ADMIN_USERNAMES = ["ludo", "siweil"];
 
 export const MEASUREMENT_TYPES = [
   { key: "arm", label: "Tour de bras", field: "arm_cm" },

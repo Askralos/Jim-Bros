@@ -47,3 +47,28 @@ export function onAuthStateChange(callback) {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => callback(session));
   return data.subscription;
 }
+
+// Change le mot de passe du compte connecté.
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    if (error.code === "same_password") throw new Error("C'est déjà ton mot de passe actuel.");
+    if (error.code === "weak_password") throw new Error("Mot de passe trop faible : 6 caractères minimum.");
+    throw error;
+  }
+}
+
+// Admins seulement (vérifié par la fonction SQL) : remplace le mot de passe d'un
+// membre qui a oublié le sien. Il n'y a pas de vrai email pour un lien de
+// réinitialisation (voir emailFor), d'où ce passage par un admin.
+export async function adminResetPassword(userId, newPassword) {
+  const { error } = await supabase.rpc("admin_reset_password", { target_user_id: userId, new_password: newPassword });
+  if (error) throw error;
+}
+
+// Mot de passe temporaire lisible (pas de 0/O ni 1/l/I), à transmettre au pote.
+export function generateTempPassword(length = 8) {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}

@@ -16,6 +16,8 @@ import {
   personalizeSession,
   isSetFilled,
   moveExercise,
+  computePersonalRecords,
+  pickRecordNames,
 } from "./utils";
 
 describe("presetToExercises", () => {
@@ -266,5 +268,42 @@ describe("moveExercise (réordonner)", () => {
   it("ne bouge pas au-delà des bords", () => {
     const list = [ex("A"), ex("B")];
     expect(moveExercise(list, 0, -1)).toBe(list);
+  });
+});
+
+describe("computePersonalRecords (PR automatiques)", () => {
+  const S = (reps, weight, extra = {}) => ({ mode: "reps", reps, weight, weightType: "external", isDrop: false, ...extra });
+  const sessions = [{ id: "a", date: "2026-10-01" }, { id: "b", date: "2026-10-08" }];
+  const entries = [
+    { sessionId: "a", bodyweightKg: 70, exercises: [
+      { name: "Squat", sets: [S(5, 100), S(8, 90)] },
+      { name: "Pompes", sets: [S(30, null, { weightType: "bodyweight" })] },
+      { name: "Gainage", sets: [{ mode: "time", seconds: 60 }] },
+      { name: "Tractions", sets: [S(10, null, { weightType: "bodyweight" }), S(5, 10, { weightType: "bodyweight_plus" })] },
+    ] },
+    { sessionId: "b", bodyweightKg: 70, exercises: [
+      { name: "Squat", sets: [S(7, 100), S(3, 110, { isDrop: true }), S(null, 200)] },
+      { name: "Pompes", sets: [S(25, null, { weightType: "bodyweight" })] },
+      { name: "Gainage", sets: [{ mode: "time", seconds: 90 }] },
+    ] },
+  ];
+  const rec = computePersonalRecords(entries, sessions);
+
+  it("charge max, départagée par les reps ; drops et séries à remplir ignorés", () => {
+    expect(rec.Squat).toMatchObject({ kind: "load", date: "2026-10-08", sessionCount: 2 });
+    expect([rec.Squat.set.reps, rec.Squat.set.weight]).toEqual([7, 100]);
+  });
+  it("poids du corps seul : le plus de reps ; temps : le plus long", () => {
+    expect(rec.Pompes).toMatchObject({ kind: "reps", date: "2026-10-01" });
+    expect(rec.Pompes.set.reps).toBe(30);
+    expect(rec.Gainage).toMatchObject({ kind: "time", date: "2026-10-08" });
+  });
+  it("une série lestée compte en charge (poids du corps + lest)", () => {
+    expect(rec.Tractions.kind).toBe("load");
+    expect(rec.Tractions.set.weightType).toBe("bodyweight_plus");
+  });
+  it("pickRecordNames : la sélection du user, sinon les plus pratiqués", () => {
+    expect(pickRecordNames(rec, ["Gainage", "Inconnu"])).toEqual(["Gainage"]);
+    expect(pickRecordNames(rec, null, 2)).toEqual(["Gainage", "Pompes"]);
   });
 });

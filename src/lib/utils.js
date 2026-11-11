@@ -239,6 +239,58 @@ export function computeProfileInsights(userId, entries, sessions) {
   return { myEntries, bestProgress };
 }
 
+// Records perso calculés depuis l'historique (plus de saisie manuelle). Pour chaque
+// exercice, la meilleure série réellement faite (drops exclus) :
+// - avec une charge (externe, lestée...) : la plus lourde (charge effective, donc
+//   lest + poids du corps), à égalité celle avec le plus de reps ;
+// - au poids du corps uniquement : le plus de reps ;
+// - en temps uniquement (gainage...) : le plus long.
+// entries : [{ sessionId, bodyweightKg, exercises }] ; sessions : [{ id, date }].
+// Renvoie { [nom]: { set, kind: "load"|"reps"|"time", date, sessionId, sessionCount } }.
+export function computePersonalRecords(entries, sessions) {
+  const dateOf = new Map(sessions.map((s) => [s.id, s.date]));
+  const byName = {};
+  entries.forEach((e) => {
+    const date = dateOf.get(e.sessionId);
+    if (!date) return;
+    e.exercises.forEach((ex) => {
+      const sets = ex.sets.filter((s) => !s.isDrop && isSetFilled(s) && (s.mode === "time" ? Number(s.seconds) > 0 : Number(s.reps) > 0));
+      if (!sets.length) return;
+      const rec = (byName[ex.name] = byName[ex.name] || { candidates: [], sessions: new Set() });
+      rec.sessions.add(e.sessionId);
+      sets.forEach((set) => rec.candidates.push({ set, date, sessionId: e.sessionId, load: effectiveSetLoad(set, e.bodyweightKg) }));
+    });
+  });
+
+  const records = {};
+  Object.entries(byName).forEach(([name, { candidates, sessions: done }]) => {
+    const reps = candidates.filter((c) => c.set.mode !== "time");
+    const weighted = reps.filter((c) => c.set.weightType !== "bodyweight");
+    let kind, pool, score;
+    if (weighted.length) { kind = "load"; pool = weighted; score = (c) => [c.load, Number(c.set.reps)]; }
+    else if (reps.length) { kind = "reps"; pool = reps; score = (c) => [Number(c.set.reps), 0]; }
+    else { kind = "time"; pool = candidates; score = (c) => [Number(c.set.seconds), 0]; }
+    // À score égal, la plus ancienne garde le record (c'est là qu'il a été établi).
+    const best = pool.reduce((a, c) => {
+      const [a1, a2] = score(a), [c1, c2] = score(c);
+      if (c1 !== a1) return c1 > a1 ? c : a;
+      if (c2 !== a2) return c2 > a2 ? c : a;
+      return c.date < a.date ? c : a;
+    });
+    records[name] = { set: best.set, kind, date: best.date, sessionId: best.sessionId, sessionCount: done.size };
+  });
+  return records;
+}
+
+// Exercices affichés en PR : ceux choisis par le user (dans son ordre) s'il en a
+// choisi, sinon ses `limit` exercices les plus pratiqués.
+export function pickRecordNames(records, chosen, limit = 6) {
+  if (chosen?.length) return chosen.filter((name) => records[name]);
+  return Object.keys(records)
+    .sort((a, b) => records[b].sessionCount - records[a].sessionCount || a.localeCompare(b))
+    .slice(0, limit);
+}
+
 // Une série est "faite" dès que sa valeur principale est saisie (reps, ou secondes en
 // mode temps). Sinon elle est "à remplir" (exercice prévu mais pas encore renseigné).
 export const isSetFilled = (s) => {

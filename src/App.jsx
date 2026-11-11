@@ -3,10 +3,11 @@ import { Dumbbell } from "lucide-react";
 import { styles } from "./lib/styles";
 import { COLORS } from "./lib/constants";
 import { getSession, onAuthStateChange } from "./lib/api/auth";
-import { updateProfile, addPR, deletePR } from "./lib/api/profiles";
+import { updateProfile } from "./lib/api/profiles";
 import { createSession, editSession, deleteSession, writeEntry, deleteEntry, getSessionById } from "./lib/api/sessions";
 import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
-import { presetToExercises, personalizeSession } from "./lib/utils";
+import { personalizeSession } from "./lib/utils";
+import { loadDraft, clearDraft, newSessionDraftKey } from "./lib/drafts";
 import { FavoritesProvider } from "./components/Favorites";
 import { useAppData } from "./hooks/useAppData";
 import { clearCache } from "./lib/cache";
@@ -24,7 +25,6 @@ const ProfileScreen = lazyScreen(() => import("./components/ProfileScreen"), "Pr
 const ExercisesLibrary = lazyScreen(() => import("./components/ExercisesLibrary"), "ExercisesLibrary");
 const CalendarView = lazyScreen(() => import("./components/CalendarView"), "CalendarView");
 const Friends = lazyScreen(() => import("./components/Friends"), "Friends");
-const Leaderboard = lazyScreen(() => import("./components/Leaderboard"), "Leaderboard");
 
 const LazyFallback = () => (
   <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
@@ -38,7 +38,7 @@ export default function App() {
   const [view, setView] = useState("home");
   const [modalSessionId, setModalSessionId] = useState(null);
   const [showNewSessionChooser, setShowNewSessionChooser] = useState(false);
-  const [newSessionExercises, setNewSessionExercises] = useState(null);
+  const [newSessionInitial, setNewSessionInitial] = useState(null);
 
   useEffect(() => {
     getSession().then((s) => {
@@ -54,7 +54,7 @@ export default function App() {
   const {
     cachedUserId, ready, loading,
     profiles, sessions: rawSessions, hasMoreSessions, loadMoreSessions, sessionShells, loadShells,
-    exercises, prs, presets, entries, refreshSessions, refreshData,
+    exercises, presets, refreshSessions, refreshData,
   } = useAppData(authUserId);
   // Tant que la session se vérifie (parfois un aller-retour réseau), on affiche déjà
   // l'app avec les données en cache du dernier compte connecté sur cet appareil.
@@ -64,14 +64,8 @@ export default function App() {
 
   // Tout l'historique allégé n'est chargé que pour les écrans qui s'en servent.
   useEffect(() => {
-    if (authUserId && (view === "friends" || view === "leaderboard")) loadShells();
+    if (authUserId && view === "friends") loadShells();
   }, [authUserId, view, loadShells]);
-
-  const prsByUser = useMemo(() => {
-    const map = {};
-    prs.forEach((pr) => { (map[pr.user_id] = map[pr.user_id] || []).push(pr); });
-    return map;
-  }, [prs]);
 
   const otherProfiles = useMemo(() => Object.values(profiles).filter((p) => p.id !== userId), [profiles, userId]);
 
@@ -84,6 +78,16 @@ export default function App() {
     getSessionById(modalSessionId).then(setFetchedModalSession);
   }, [modalSessionId, modalSessionInWindow]);
   const modalSession = modalSessionInWindow || (fetchedModalSession?.id === modalSessionId ? personalizeSession(fetchedModalSession, userId) : null);
+
+  // Séance en cours non publiée (brouillon) : reprise proposée depuis l'accueil et le "+".
+  const hasDraft = !!userId && view !== "log" && !!loadDraft(newSessionDraftKey(userId));
+  const startNewSession = (initial) => {
+    if (hasDraft && !confirm("Remplacer ta séance en cours (pas encore publiée) ?")) return;
+    clearDraft(newSessionDraftKey(userId));
+    setNewSessionInitial(initial);
+    setShowNewSessionChooser(false);
+    setView("log");
+  };
 
   const handleCreatePreset = async (name, exs) => { await createPreset(name, exs, userId); await refreshData("presets"); };
   const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refreshData("presets"); };
@@ -121,6 +125,7 @@ export default function App() {
             currentUserId={userId} profiles={profiles} sessions={sessions} ready={ready}
             onOpenSession={setModalSessionId}
             onNewSession={() => setShowNewSessionChooser(true)}
+            hasDraft={hasDraft} onResumeDraft={() => setView("log")}
             onSeeCalendar={() => setView("calendar")}
           />
         )}
@@ -137,14 +142,15 @@ export default function App() {
         {view === "log" && (
           <NewSession
             currentUserId={userId} otherProfiles={otherProfiles} exerciseList={exercises} sessions={sessions}
-            initialExercises={newSessionExercises}
+            draftKey={newSessionDraftKey(userId)} initial={newSessionInitial}
             onSubmit={async (payload, ownExercises) => {
               const newId = await createSession(payload, userId, ownExercises);
+              clearDraft(newSessionDraftKey(userId)); // avant de quitter l'écran : l'accueil ne doit plus proposer de la reprendre
               await refreshSessions([newId]);
-              setNewSessionExercises(null);
+              setNewSessionInitial(null);
               setView("home");
             }}
-            onCancel={() => { setNewSessionExercises(null); setView("home"); }}
+            onCancel={() => { setNewSessionInitial(null); setView("home"); }}
           />
         )}
 
@@ -152,10 +158,7 @@ export default function App() {
           <Suspense fallback={<LazyFallback />}>
             <ProfileScreen
               currentUserId={userId} profile={profile}
-              prs={prsByUser[userId] || []} exerciseList={exercises}
               onSave={async (partial) => { await updateProfile(userId, partial); await refreshData("profiles"); }}
-              onAddPr={async (exercise, value, unit) => { await addPR(userId, exercise, value, unit); await refreshData("prs"); }}
-              onDeletePr={async (id) => { await deletePR(id); await refreshData("prs"); }}
               onOpenSession={setModalSessionId}
               onRefresh={() => refreshData("profiles")}
             />
@@ -164,7 +167,7 @@ export default function App() {
 
         {view === "friends" && (
           <Suspense fallback={<LazyFallback />}>
-            <Friends currentUserId={userId} profiles={profiles} sessionShells={sessionShells} prsByUser={prsByUser} onOpenSession={setModalSessionId} />
+            <Friends currentUserId={userId} profiles={profiles} sessionShells={sessionShells} onOpenSession={setModalSessionId} />
           </Suspense>
         )}
 
@@ -179,25 +182,18 @@ export default function App() {
           </Suspense>
         )}
 
-        {view === "leaderboard" && (
-          <Suspense fallback={<LazyFallback />}>
-            <Leaderboard
-              profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells}
-              currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser}
-            />
-          </Suspense>
-        )}
       </div>
       <BottomNav view={view} setView={setView} onNewSession={() => setShowNewSessionChooser(true)} />
 
       {showNewSessionChooser && (
         <NewSessionChooser
-          presets={presets} exerciseList={exercises} currentUserId={userId} profiles={profiles}
+          presets={presets} exerciseList={exercises} currentUserId={userId} profiles={profiles} sessions={sessions}
+          hasDraft={hasDraft}
           onCreatePreset={handleCreatePreset}
           onUpdatePreset={handleUpdatePreset}
           onDeletePreset={handleDeletePreset}
-          onBlank={() => { setNewSessionExercises(null); setShowNewSessionChooser(false); setView("log"); }}
-          onPreset={(preset) => { setNewSessionExercises(presetToExercises(preset)); setShowNewSessionChooser(false); setView("log"); }}
+          onResume={() => { setShowNewSessionChooser(false); setView("log"); }}
+          onStart={startNewSession}
           onClose={() => setShowNewSessionChooser(false)}
         />
       )}

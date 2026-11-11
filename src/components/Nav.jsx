@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Dumbbell, LogOut, Calendar, Trophy, Plus, Users, BookOpen, User } from "lucide-react";
+import { Dumbbell, LogOut, Calendar, Plus, Users, BookOpen, User } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { signOut } from "../lib/api/auth";
 import { PresetsEditor } from "./PresetsEditor";
 import { Modal } from "./Modal";
+import { ComparePicker } from "./CompareSession";
+import { entryDraftFrom } from "./SessionEntryForm";
+import { presetToExercises } from "../lib/utils";
 
 export function TopBar({ profile }) {
   return (
@@ -28,13 +31,10 @@ export function BottomNav({ view, setView, onNewSession }) {
     { key: "log", label: "Séance", icon: Plus, isCenter: true },
     { key: "friends", label: "Amis", icon: Users },
     { key: "profile", label: "Profil", icon: User },
-    // Masqué de la barre (peu utilisé) mais l'écran Classement est conservé :
-    // passer hidden à false pour le réafficher.
-    { key: "leaderboard", label: "Classement", icon: Trophy, hidden: true },
   ];
   return (
     <div style={styles.bottomNav}>
-      {items.filter((it) => !it.hidden).map((it) => {
+      {items.map((it) => {
         const Icon = it.icon;
         const active = view === it.key || (it.key === "home" && view === "calendar");
         if (it.isCenter) {
@@ -51,18 +51,43 @@ export function BottomNav({ view, setView, onNewSession }) {
   );
 }
 
+// Menu du bouton "+" : reprendre la séance en cours (brouillon), ou en démarrer une
+// nouvelle (vierge, depuis un preset, ou copiée d'une de mes séances passées).
+// onStart(initial) : initial = null (vierge) ou { title?, sessionTypes?, exercises }.
 export function NewSessionChooser({
-  presets, exerciseList, currentUserId, profiles,
-  onBlank, onPreset, onClose,
+  presets, exerciseList, currentUserId, profiles, sessions, hasDraft,
+  onResume, onStart, onClose,
   onCreatePreset, onUpdatePreset, onDeletePreset,
 }) {
   const [showPresets, setShowPresets] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
   return (
     <Modal title="Nouvelle séance" onClose={onClose} onDismiss={false}>
-      <button style={{ ...styles.primaryBtn, marginBottom: 10 }} onClick={onBlank}>Séance vierge</button>
-      <button style={styles.secondaryBtn} onClick={() => setShowPresets(true)}>Depuis un preset</button>
+      {hasDraft && (
+        <>
+          <button style={{ ...styles.primaryBtn, marginBottom: 6 }} onClick={onResume}>Reprendre la séance en cours</button>
+          <p style={{ fontSize: 11, color: COLORS.muted, textAlign: "center", margin: "0 0 14px" }}>Pas encore publiée. Les choix ci-dessous la remplacent.</p>
+        </>
+      )}
+      <button style={{ ...(hasDraft ? styles.secondaryBtn : styles.primaryBtn), marginBottom: 10 }} onClick={() => onStart(null)}>Séance vierge</button>
+      <button style={{ ...styles.secondaryBtn, marginBottom: 10 }} onClick={() => setShowPresets(true)}>Depuis un preset</button>
+      <button style={styles.secondaryBtn} onClick={() => setShowPast(true)}>Depuis une séance passée</button>
       <button style={{ ...styles.secondaryBtn, marginTop: 14 }} onClick={onClose}>Annuler</button>
+
+      {showPast && (
+        <ComparePicker
+          title="Refaire une séance passée"
+          sessions={sessions}
+          currentUserId={currentUserId}
+          onClose={() => setShowPast(false)}
+          onSelect={(id) => {
+            const session = sessions.find((s) => s.id === id);
+            const entry = session.entries[currentUserId];
+            onStart({ title: session.title || "", sessionTypes: entry.sessionTypes || [], exercises: entryDraftFrom(entry).exercises });
+          }}
+        />
+      )}
 
       {showPresets && (
         <Modal title="Choisir un preset" onClose={() => setShowPresets(false)}>
@@ -74,7 +99,7 @@ export function NewSessionChooser({
             onCreate={onCreatePreset}
             onUpdate={onUpdatePreset}
             onDelete={onDeletePreset}
-            onSelect={(p) => { onPreset(p); setShowPresets(false); }}
+            onSelect={(p) => onStart({ exercises: presetToExercises(p) })}
           />
         </Modal>
       )}

@@ -11,6 +11,7 @@ export function AuthScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const submit = async () => {
     setError("");
@@ -52,6 +53,16 @@ export function AuthScreen() {
         <input style={styles.input} placeholder="Mot de passe" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
         {error && <p style={{ color: COLORS.flame, fontSize: 13, margin: "4px 2px" }}>{error}</p>}
         <button style={styles.primaryBtn} onClick={submit} disabled={busy}>{busy ? "..." : mode === "login" ? "Se connecter" : "Créer mon compte"}</button>
+        {mode === "login" && (
+          <button style={{ ...styles.linkBtn, color: COLORS.muted, marginTop: 12, width: "100%" }} onClick={() => setShowForgot((v) => !v)}>
+            Mot de passe oublié ?
+          </button>
+        )}
+        {mode === "login" && showForgot && (
+          <p style={{ color: COLORS.muted, fontSize: 12, textAlign: "center", margin: "8px 4px 0", lineHeight: 1.4 }}>
+            Demande à Siweil ou Ludo : ils peuvent te donner un nouveau mot de passe depuis l'app, que tu pourras ensuite changer dans ton profil.
+          </p>
+        )}
       </div>
     </div>
   );

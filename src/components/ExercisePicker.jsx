@@ -114,7 +114,7 @@ export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false,
           return (
             <div
               key={ex.id}
-              style={{ ...styles.friendRow, cursor: "pointer", ...(isSelected ? { borderColor: COLORS.lime } : {}) }}
+              style={{ ...styles.friendRow, cursor: "pointer", ...(isSelected ? { border: `1px solid ${COLORS.lime}` } : {}) }}
               onClick={() => (multi ? toggleSelected(ex) : onSelect(ex))}
             >
               <ExerciseRowThumb exercise={ex} />

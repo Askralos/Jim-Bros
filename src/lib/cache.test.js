@@ -32,3 +32,28 @@ describe("cache local", () => {
     expect(loadCache()).toBeNull();
   });
 });
+
+import { loadDraft, saveDraft, clearDraft } from "./drafts";
+
+describe("brouillons", () => {
+  beforeEach(() => {
+    const store = new Map();
+    vi.stubGlobal("localStorage", {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => store.set(k, String(v)),
+      removeItem: (k) => store.delete(k),
+    });
+  });
+
+  it("sauvegarde, relit, efface", () => {
+    saveDraft("new.u1", { title: "Push" });
+    expect(loadDraft("new.u1")).toEqual({ title: "Push" });
+    clearDraft("new.u1");
+    expect(loadDraft("new.u1")).toBeNull();
+  });
+
+  it("un brouillon de plus de 3 jours est ignoré", () => {
+    localStorage.setItem("jimbros.draft.old", JSON.stringify({ savedAt: Date.now() - 4 * 86400000, data: { title: "x" } }));
+    expect(loadDraft("old")).toBeNull();
+  });
+});

@@ -8,13 +8,13 @@ import { Modal } from "./Modal";
 // Sélecteur d'une séance passée (où l'utilisateur a ses propres stats) à comparer
 // pendant la saisie de ses stats (nouvelle séance ou "Modifier mes stats").
 // excludeId : la séance en cours d'édition, qu'on ne propose pas.
-export function ComparePicker({ sessions, currentUserId, excludeId, onClose, onSelect }) {
+export function ComparePicker({ title = "Comparer avec une séance", sessions, currentUserId, excludeId, onClose, onSelect }) {
   const past = useMemo(
     () => sessions.filter((s) => s.id !== excludeId && s.entries[currentUserId]).sort((a, b) => (a.date < b.date ? 1 : -1)),
     [sessions, currentUserId, excludeId]
   );
   return (
-    <Modal title="Comparer avec une séance" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       {past.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Pas encore de séance avec tes stats.</p>}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {past.map((s) => {

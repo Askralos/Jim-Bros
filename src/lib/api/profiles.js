@@ -70,19 +70,3 @@ export async function addMeasurementEntry(userId, type, valueCm, loggedOn) {
   if (error) throw error;
   await updateProfile(userId, { [MEASUREMENT_PROFILE_FIELD[type]]: valueCm });
 }
-
-export async function getAllPRs() {
-  const { data, error } = await supabase.from("personal_records").select("*").order("logged_on", { ascending: false });
-  if (error) throw error;
-  return data;
-}
-
-export async function addPR(userId, exercise, value, unit) {
-  const { error } = await supabase.from("personal_records").insert({ user_id: userId, exercise, value, unit });
-  if (error) throw error;
-}
-
-export async function deletePR(id) {
-  const { error } = await supabase.from("personal_records").delete().eq("id", id);
-  if (error) throw error;
-}

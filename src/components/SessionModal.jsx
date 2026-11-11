@@ -8,6 +8,7 @@ import { SessionTypeBadges } from "./SessionTypes";
 import { Modal } from "./Modal";
 import { SessionEntryForm, entryDraftFrom } from "./SessionEntryForm";
 import { SessionEditForm, sessionMetaFrom } from "./SessionEditForm";
+import { loadDraft, saveDraft, clearDraft, entryDraftKey } from "../lib/drafts";
 
 // Photo(s) de la séance : la principale (ma photo perso si j'en ai mis une, sinon
 // celle de la séance), puis celles des autres participants en miniatures pour
@@ -109,22 +110,43 @@ export function SessionModal({
 }) {
   const [mode, setMode] = useState("view"); // "view" | "fillEntry" | "editEntry" | "editSession"
   const myEntry = session.entries[currentUserId];
-  const [entryDraft, setEntryDraft] = useState(() => entryDraftFrom(myEntry));
+  // Brouillon de mes stats : repris du navigateur s'il y en a un (saisie non
+  // enregistrée, app rechargée...), sinon mes stats telles qu'enregistrées.
+  const draftKey = entryDraftKey(currentUserId, session.id);
+  const [entryDraft, setEntryDraft] = useState(() => loadDraft(draftKey) || entryDraftFrom(myEntry));
+  const [hasUnsaved, setHasUnsaved] = useState(() => !!loadDraft(draftKey));
   const [sessionMeta, setSessionMeta] = useState(() => sessionMetaFrom(session));
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
 
   const participants = session.participants;
   const isCreator = currentUserId === session.creator;
+  // silent : complément automatique (poids du jour pré-rempli), pas une saisie de
+  // l'utilisateur, donc pas de brouillon "non enregistré" pour autant.
+  const editDraft = (update, { silent = false } = {}) => {
+    setEntryDraft((d) => {
+      const next = typeof update === "function" ? update(d) : update;
+      if (!silent) saveDraft(draftKey, next);
+      return next;
+    });
+    if (!silent) setHasUnsaved(true);
+  };
+  const resetDraft = () => {
+    clearDraft(draftKey);
+    setEntryDraft(entryDraftFrom(myEntry));
+    setHasUnsaved(false);
+  };
+
   const toggleExpanded = (id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   if (mode === "fillEntry" || mode === "editEntry") {
     return (
       <SessionEntryForm
-        session={session} isNew={mode === "fillEntry"} draft={entryDraft} onDraftChange={setEntryDraft}
+        session={session} isNew={mode === "fillEntry"} draft={entryDraft} onDraftChange={editDraft}
+        hasUnsaved={hasUnsaved} onDiscard={resetDraft}
         sessions={sessions} profiles={profiles} currentUserId={currentUserId} exerciseList={exerciseList}
         presets={presets} onCreatePreset={onCreatePreset} onUpdatePreset={onUpdatePreset} onDeletePreset={onDeletePreset}
-        onSubmit={onSubmitEntry}
-        onDelete={() => { onDeleteEntry(); setEntryDraft(entryDraftFrom(null)); setMode("view"); }}
+        onSubmit={async (...args) => { await onSubmitEntry(...args); clearDraft(draftKey); setHasUnsaved(false); }}
+        onDelete={() => { onDeleteEntry(); clearDraft(draftKey); setHasUnsaved(false); setEntryDraft(entryDraftFrom(null)); setMode("view"); }}
         onBack={() => setMode("view")}
         onClose={onClose}
       />
@@ -235,7 +257,7 @@ export function SessionModal({
                           </span>
                         ) : <span />}
                         {mine && (
-                          <button style={styles.linkBtn} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
+                          <button style={styles.linkBtn} onClick={() => setMode("editEntry")}>{hasUnsaved ? "Reprendre mes modifs" : "Modifier mes stats"}</button>
                         )}
                       </div>
                     )}
@@ -251,7 +273,7 @@ export function SessionModal({
                     )}
                   </>
                 ) : mine ? (
-                  <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
+                  <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>{hasUnsaved ? "Reprendre mes stats (pas encore enregistrées)" : "Ajouter mes stats"}</button>
                 ) : null}
               </>
             )}

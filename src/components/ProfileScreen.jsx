@@ -1,18 +1,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, TrendingUp, ChevronRight, Pencil, X } from "lucide-react";
+import { Check, TrendingUp, ChevronRight, Pencil } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, MEASUREMENT_TYPES } from "../lib/constants";
 import { fmtDate, todayKey, computeProfileInsights } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
 import { MiniLineChart } from "./MiniLineChart";
+import { PersonalRecords } from "./PersonalRecords";
+import { ChangePassword } from "./PasswordSettings";
 import { Modal } from "./Modal";
 import { uploadPhoto } from "../lib/api/storage";
 import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
 import { getUserHistory } from "../lib/api/sessions";
 import { SessionHistoryList } from "./SessionTypes";
 
-export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSave, onAddPr, onDeletePr, onOpenSession, onRefresh }) {
+export function ProfileScreen({ currentUserId, profile, onSave, onOpenSession, onRefresh }) {
   const [form, setForm] = useState(profile);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [openMeasurement, setOpenMeasurement] = useState(null); // clé du type ouvert (arm/chest/waist/thigh)
@@ -139,11 +141,19 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
         <MetricCard label="Meilleure progression" value={bestProgress ? `${bestProgress.name} +${bestProgress.delta}kg` : "—"} />
       </div>
 
-      <PrSection prs={prs} exerciseList={exerciseList} onAdd={onAddPr} onDelete={onDeletePr} />
+      {history && (
+        <PersonalRecords
+          history={history} chosen={profile.pr_exercises}
+          onChoose={(list) => onSave({ pr_exercises: list })}
+          onOpenSession={onOpenSession}
+        />
+      )}
 
       <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
       {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
       {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} />}
+
+      <ChangePassword />
 
       {showWeightModal && (
         <TrackingModal
@@ -240,57 +250,5 @@ function FieldNum({ label, value, onChange }) {
       <label style={styles.label}>{label}</label>
       <input style={{ ...styles.input, marginBottom: 0 }} type="number" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
     </div>
-  );
-}
-
-function PrSection({ prs, exerciseList, onAdd, onDelete }) {
-  const [adding, setAdding] = useState(false);
-  const [exo, setExo] = useState("");
-  const [val, setVal] = useState("");
-  const [unit, setUnit] = useState("kg");
-
-  const submit = () => {
-    if (!exo.trim() || !val) return;
-    onAdd(exo.trim(), Number(val), unit);
-    setExo(""); setVal(""); setAdding(false);
-  };
-
-  return (
-    <>
-      <h2 style={styles.sectionTitle}>Mes PR</h2>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        {prs.map((pr) => (
-          <div key={pr.id} style={styles.prChip}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, color: COLORS.muted }}>{pr.exercise}</span>
-              <button style={{ ...styles.iconBtn, padding: 0 }} onClick={() => onDelete(pr.id)} aria-label="Supprimer ce PR"><X size={13} /></button>
-            </div>
-            <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: COLORS.lime }}>{pr.value}{pr.unit}</span>
-          </div>
-        ))}
-      </div>
-      {adding ? (
-        <div style={styles.exCard}>
-          <datalist id="pr-exo-options">
-            {exerciseList.map((e) => <option key={e.id} value={e.name} />)}
-          </datalist>
-          <input style={styles.input} placeholder="Exercice (recherche...)" list="pr-exo-options" value={exo} onChange={(e) => setExo(e.target.value)} />
-          <div style={{ display: "flex", gap: 8 }}>
-            <input style={styles.setInput} placeholder="Valeur" type="number" value={val} onChange={(e) => setVal(e.target.value)} />
-            <select style={styles.input} value={unit} onChange={(e) => setUnit(e.target.value)}>
-              <option value="kg">kg</option>
-              <option value="reps">reps</option>
-              <option value="sec">sec</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-            <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={() => setAdding(false)}>Annuler</button>
-            <button style={{ ...styles.primaryBtn, flex: 1 }} onClick={submit}>Ajouter</button>
-          </div>
-        </div>
-      ) : (
-        <button style={styles.secondaryBtn} onClick={() => setAdding(true)}>+ Ajouter un PR</button>
-      )}
-    </>
   );
 }

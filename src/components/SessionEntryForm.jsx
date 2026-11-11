@@ -40,10 +40,10 @@ export function entryDraftFrom(entry) {
 }
 
 // "Ajouter / Modifier mes stats" sur une séance existante. Le brouillon vit dans
-// SessionModal (draft/onDraftChange) : fermer le formulaire avec la croix puis le
-// rouvrir ne perd pas la saisie en cours.
+// SessionModal (draft/onDraftChange), qui le garde aussi dans le navigateur : fermer
+// le formulaire, quitter la séance ou recharger l'app ne perd pas la saisie.
 export function SessionEntryForm({
-  session, isNew, draft, onDraftChange, sessions, profiles, currentUserId, exerciseList,
+  session, isNew, draft, onDraftChange, hasUnsaved, onDiscard, sessions, profiles, currentUserId, exerciseList,
   presets, onCreatePreset, onUpdatePreset, onDeletePreset,
   onSubmit, onDelete, onBack, onClose,
 }) {
@@ -58,7 +58,7 @@ export function SessionEntryForm({
   // Pré-remplit le poids du jour avec le dernier connu si rien n'est encore saisi.
   useEffect(() => {
     if (draft.bodyweightKg !== "") return;
-    getLatestWeight(currentUserId).then((w) => { if (w != null) onDraftChange((d) => (d.bodyweightKg === "" ? { ...d, bodyweightKg: w } : d)); }).catch(() => {});
+    getLatestWeight(currentUserId).then((w) => { if (w != null) onDraftChange((d) => (d.bodyweightKg === "" ? { ...d, bodyweightKg: w } : d), { silent: true }); }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -94,13 +94,21 @@ export function SessionEntryForm({
       title={isNew ? "Ajouter mes stats" : "Modifier mes stats"}
       onClose={onClose}
       onDismiss={onBack}
-      confirmClose="Fermer sans enregistrer tes stats ?"
       actions={!isNew && (
         <button style={styles.iconBtn} onClick={() => { if (confirm("Supprimer tes stats de cette séance ?")) onDelete(); }} aria-label="Supprimer mes stats">
           <Trash2 size={16} color={COLORS.flame} />
         </button>
       )}
     >
+      {hasUnsaved && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12, color: COLORS.muted, marginTop: -4, marginBottom: 12 }}>
+          <span>Brouillon pas encore enregistré</span>
+          <button style={{ ...styles.linkBtn, color: COLORS.muted }} onClick={() => { if (confirm("Annuler tes modifications non enregistrées ?")) onDiscard(); }}>
+            Annuler mes modifs
+          </button>
+        </div>
+      )}
+
       {!isCreator && (
         <div style={{ background: COLORS.surface2, borderRadius: 10, padding: "10px 10px 1px", marginBottom: 14 }}>
           <span style={{ fontSize: 13, fontWeight: 700, display: "block" }}>Ta version de la séance (optionnel)</span>

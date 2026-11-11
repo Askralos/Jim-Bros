@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS } from "../lib/constants";
+import { COLORS, ADMIN_USERNAMES } from "../lib/constants";
 import { fmtDate, computeProfileInsights } from "../lib/utils";
 import { getUserHistory } from "../lib/api/sessions";
 import { SessionHistoryList } from "./SessionTypes";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
+import { PersonalRecords } from "./PersonalRecords";
+import { AdminPasswordReset } from "./PasswordSettings";
 import { Modal } from "./Modal";
 
-export function Friends({ currentUserId, profiles, sessionShells: shells, prsByUser, onOpenSession }) {
+export function Friends({ currentUserId, profiles, sessionShells: shells, onOpenSession }) {
   const others = Object.values(profiles);
   const sessionShells = shells || []; // null tant que l'historique allégé charge
 
@@ -68,7 +70,8 @@ export function Friends({ currentUserId, profiles, sessionShells: shells, prsByU
 
       {openFriend && (
         <FriendProfileModal
-          userId={openFriend} profile={profiles[openFriend]} prs={prsByUser[openFriend] || []}
+          userId={openFriend} profile={profiles[openFriend]}
+          canResetPassword={ADMIN_USERNAMES.includes(profiles[currentUserId]?.username) && openFriend !== currentUserId}
           onClose={() => setOpenFriend(null)}
           onOpenSession={(id) => { setOpenFriend(null); onOpenSession(id); }}
         />
@@ -77,7 +80,7 @@ export function Friends({ currentUserId, profiles, sessionShells: shells, prsByU
   );
 }
 
-function FriendProfileModal({ userId, profile, prs, onClose, onOpenSession }) {
+function FriendProfileModal({ userId, profile, canResetPassword, onClose, onOpenSession }) {
   const [history, setHistory] = useState(null); // null = en cours de chargement
   useEffect(() => { setHistory(null); getUserHistory(userId).then(setHistory); }, [userId]);
 
@@ -116,23 +119,13 @@ function FriendProfileModal({ userId, profile, prs, onClose, onOpenSession }) {
         </div>
       )}
 
-      {prs.length > 0 && (
-        <>
-          <h2 style={{ ...styles.sectionTitle, marginTop: 4 }}>PR</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-            {prs.map((pr) => (
-              <div key={pr.id} style={styles.prChip}>
-                <span style={{ fontSize: 11, color: COLORS.muted }}>{pr.exercise}</span>
-                <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: COLORS.lime }}>{pr.value}{pr.unit}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {history && <PersonalRecords history={history} chosen={profile.pr_exercises} onOpenSession={onOpenSession} />}
 
       <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
       {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
       {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} limit={15} emptyText="Pas encore de séance postée." />}
+
+      {canResetPassword && <AdminPasswordReset userId={userId} displayName={profile.display_name} />}
     </Modal>
   );
 }

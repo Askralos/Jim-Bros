@@ -22,7 +22,7 @@ export async function addExercise(name, photoUrl, addedBy, tags = []) {
   }
 }
 
-// Modifier/supprimer un exercice est réservé aux admins (EXERCISE_ADMIN_USERNAMES),
+// Modifier/supprimer un exercice est réservé aux admins (ADMIN_USERNAMES),
 // côté UI comme côté base (RLS).
 export async function updateExercise(id, { name, tags, photoUrl }) {
   const patch = {};

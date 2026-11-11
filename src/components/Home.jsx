@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { Camera, ChevronRight, Dumbbell } from "lucide-react";
+import { Camera, ChevronRight, Dumbbell, Pencil } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { todayKey, fmtDate, fmtDuration, volumeOf } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
-export function Home({ currentUserId, profiles, sessions, ready, onOpenSession, onNewSession, onSeeCalendar }) {
+export function Home({ currentUserId, profiles, sessions, ready, hasDraft, onResumeDraft, onOpenSession, onNewSession, onSeeCalendar }) {
   const days = useMemo(() => {
     const arr = [];
     for (let i = 6; i >= 0; i--) {
@@ -56,7 +56,11 @@ export function Home({ currentUserId, profiles, sessions, ready, onOpenSession, 
         })}
       </div>
 
-      {ready && !postedToday && (
+      {hasDraft ? (
+        <button style={styles.ctaBanner} onClick={onResumeDraft}>
+          <Pencil size={16} /><span>Séance en cours pas encore publiée — reprendre</span><ChevronRight size={16} />
+        </button>
+      ) : ready && !postedToday && (
         <button style={styles.ctaBanner} onClick={onNewSession}>
           <Camera size={16} /><span>Pas encore posté aujourd'hui — go séance</span><ChevronRight size={16} />
         </button>

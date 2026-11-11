@@ -78,7 +78,7 @@ export async function getSessions({ limit = SESSIONS_PAGE_SIZE, before } = {}) {
 }
 
 // Version très légère (pas d'exercices/séries) de TOUTES les séances, pour les
-// écrans qui n'ont besoin que de savoir qui a posté quand (classement, liste
+// écrans qui n'ont besoin que de savoir qui a posté quand (liste
 // d'amis) sans payer le coût du détail complet sur tout l'historique.
 export async function getSessionShells() {
   const { data, error } = await supabase

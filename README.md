@@ -17,6 +17,7 @@ src/
     styles.js           objets de style partagés entre composants
     utils.js            fonctions pures (dates, supersets, dropsets, volume, streak...)
     cache.js            dernier état connu gardé en localStorage (ouverture instantanée)
+    drafts.js           brouillons de saisie (séance en cours, mes stats) en localStorage
     lazyScreen.js       écrans chargés à la demande (+ rechargement après un déploiement)
     api/                toutes les requêtes Supabase, un fichier par domaine
       auth.js  profiles.js  exercises.js  presets.js  sessions.js  storage.js
@@ -24,7 +25,7 @@ src/
     useAppData.js       charge les données partagées (cache puis réseau), les tient à
                         jour via Supabase Realtime, pagine le fil des séances
   components/
-    Home, CalendarView, Friends, ProfileScreen, ExercisesLibrary, Leaderboard   écrans
+    Home, CalendarView, Friends, ProfileScreen, ExercisesLibrary   écrans
     NewSession          création d'une séance
     SessionModal        détail d'une séance ; SessionEntryForm (mes stats) et
                         SessionEditForm (modifier la séance) sont ses deux formulaires
@@ -78,9 +79,11 @@ définir dans le projet Vercel : `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`
 
 ## Limites connues
 
-- **Auth par faux email** : très bien pour une squad fermée, mais pas de
-  récupération de mot de passe. Pour ouvrir l'app plus largement, passer à un vrai
-  email ou à un fournisseur OAuth.
+- **Auth par faux email** : très bien pour une squad fermée, mais pas de lien de
+  réinitialisation par email. Chacun change son mot de passe depuis son profil, et
+  les admins (`ADMIN_USERNAMES`) réinitialisent celui d'un membre depuis sa fiche
+  dans Amis (fonction SQL `admin_reset_password`). Pour ouvrir l'app plus largement,
+  passer à un vrai email ou à un fournisseur OAuth.
 - **Écritures non atomiques** : publier une séance enchaîne plusieurs requêtes
   (séance, participants, entrée, exercices, séries). Un échec en cours de route est
   rattrapé à la création (la séance est supprimée), mais modifier ses stats repart de

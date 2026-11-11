@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Dumbbell, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constants";
+import { COLORS, EXERCISE_TAGS, ADMIN_USERNAMES } from "../lib/constants";
 import { exerciseSetHistoryByName, fmtDate, norm } from "../lib/utils";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
 import { getUserHistory } from "../lib/api/sessions";
@@ -149,7 +149,7 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
   const { query, setQuery, activeTag, toggleTag, filtered } = useExerciseFilter(exerciseList, { withFavorites: true });
   const [formTarget, setFormTarget] = useState(null); // "new" = création, sinon l'exercice édité, null = fermé
   const [preview, setPreview] = useState(null);
-  const canManage = EXERCISE_ADMIN_USERNAMES.includes(currentUsername);
+  const canManage = ADMIN_USERNAMES.includes(currentUsername);
 
   const removeExercise = async (ex) => {
     if (!confirm(`Supprimer "${ex.name}" de la bibliothèque ?`)) return;
