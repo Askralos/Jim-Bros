@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Search, Dumbbell, X, Star } from "lucide-react";
+import { Search, Dumbbell, Star } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, tagLabel, tagColor } from "../lib/constants";
 import { norm } from "../lib/utils";
 import { useFavorites, FavoriteStar } from "./Favorites";
+import { Modal } from "./Modal";
 
 // Liste filtrable (recherche + un seul tag à la fois) réutilisée par ExercisePicker et
 // ExercisesLibrary. withFavorites : les favoris remontent en tête de liste et un
 // filtre "Favoris" est proposé avant les tags.
-export const FAVORITES_FILTER = "__favoris";
+const FAVORITES_FILTER = "__favoris";
 
 export function useExerciseFilter(exerciseList, { withFavorites = false } = {}) {
   const [query, setQuery] = useState("");
@@ -93,61 +94,55 @@ export function ExercisePicker({ exerciseList, onSelect, onClose, multi = false,
   const toggleSelected = (ex) => setSelected((s) => (s.includes(ex.id) ? s.filter((id) => id !== ex.id) : [...s, ex.id]));
 
   return (
-    // Au-dessus du chrono flottant (zIndex 60), qui lui passe au-dessus des autres modales.
-    <div style={{ ...styles.modalBackdrop, zIndex: 70 }} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>{title || (multi ? "Exercices du superset" : "Choisir un exercice")}</span>
-          <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
-        </div>
-        {multi && (
-          <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -4, marginBottom: 10 }}>
-            {minSelect > 1 ? `Sélectionne au moins ${minSelect} exercices, dans l'ordre où tu les enchaînes.` : "Sélectionne le ou les exercices à enchaîner, dans l'ordre."}
+    // zIndex : au-dessus du chrono flottant (60), qui lui passe au-dessus des autres modales.
+    <Modal title={title || (multi ? "Exercices du superset" : "Choisir un exercice")} onClose={onClose} zIndex={70}>
+      {multi && (
+        <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -4, marginBottom: 10 }}>
+          {minSelect > 1 ? `Sélectionne au moins ${minSelect} exercices, dans l'ordre où tu les enchaînes.` : "Sélectionne le ou les exercices à enchaîner, dans l'ordre."}
+        </p>
+      )}
+      <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} withFavorites />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.length === 0 && (
+          <p style={{ color: COLORS.muted, fontSize: 13 }}>
+            {activeTag === FAVORITES_FILTER ? "Pas encore de favori : touche l'étoile d'un exercice pour l'ajouter." : "Aucun exercice ne correspond."}
           </p>
         )}
-        <ExerciseFilterBar query={query} setQuery={setQuery} activeTag={activeTag} toggleTag={toggleTag} withFavorites />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.length === 0 && (
-            <p style={{ color: COLORS.muted, fontSize: 13 }}>
-              {activeTag === FAVORITES_FILTER ? "Pas encore de favori : touche l'étoile d'un exercice pour l'ajouter." : "Aucun exercice ne correspond."}
-            </p>
-          )}
-          {filtered.map((ex) => {
-            const order = selected.indexOf(ex.id);
-            const isSelected = order !== -1;
-            return (
-              <div
-                key={ex.id}
-                style={{ ...styles.friendRow, cursor: "pointer", ...(isSelected ? { borderColor: COLORS.lime } : {}) }}
-                onClick={() => (multi ? toggleSelected(ex) : onSelect(ex))}
-              >
-                <ExerciseRowThumb exercise={ex} />
-                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-                  <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
-                  <TagBadges tags={ex.tags} />
-                </div>
-                <FavoriteStar exerciseId={ex.id} />
-                {isSelected && (
-                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: COLORS.lime, color: "#111214", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {order + 1}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {multi && (
-          <div style={{ position: "sticky", bottom: -18, background: COLORS.surface, paddingTop: 10, paddingBottom: 18, marginTop: 10 }}>
-            <button
-              style={{ ...styles.primaryBtn, ...(selected.length < minSelect ? { opacity: 0.4, cursor: "default" } : {}) }}
-              disabled={selected.length < minSelect}
-              onClick={() => onConfirmMulti(selected.map((id) => exerciseList.find((e) => e.id === id)))}
+        {filtered.map((ex) => {
+          const order = selected.indexOf(ex.id);
+          const isSelected = order !== -1;
+          return (
+            <div
+              key={ex.id}
+              style={{ ...styles.friendRow, cursor: "pointer", ...(isSelected ? { borderColor: COLORS.lime } : {}) }}
+              onClick={() => (multi ? toggleSelected(ex) : onSelect(ex))}
             >
-              Valider{selected.length ? ` (${selected.length})` : ""}
-            </button>
-          </div>
-        )}
+              <ExerciseRowThumb exercise={ex} />
+              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={{ fontSize: 14, display: "block" }}>{ex.name}</span>
+                <TagBadges tags={ex.tags} />
+              </div>
+              <FavoriteStar exerciseId={ex.id} />
+              {isSelected && (
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: COLORS.lime, color: "#111214", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {order + 1}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
+      {multi && (
+        <div style={{ position: "sticky", bottom: -18, background: COLORS.surface, paddingTop: 10, paddingBottom: 18, marginTop: 10 }}>
+          <button
+            style={{ ...styles.primaryBtn, ...(selected.length < minSelect ? { opacity: 0.4, cursor: "default" } : {}) }}
+            disabled={selected.length < minSelect}
+            onClick={() => onConfirmMulti(selected.map((id) => exerciseList.find((e) => e.id === id)))}
+          >
+            Valider{selected.length ? ` (${selected.length})` : ""}
+          </button>
+        </div>
+      )}
+    </Modal>
   );
 }

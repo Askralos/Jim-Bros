@@ -133,16 +133,6 @@ export async function getSessionsByIds(ids) {
   return data.map(shapeSession);
 }
 
-// Nombre total de séances (toutes dates confondues) où chaque user a posté ses
-// stats — sert au ratio "séances/semaine" du classement, sans charger le détail.
-export async function getSessionCountsByUser() {
-  const { data, error } = await supabase.from("session_entries").select("user_id");
-  if (error) throw error;
-  const counts = {};
-  data.forEach((r) => { counts[r.user_id] = (counts[r.user_id] || 0) + 1; });
-  return counts;
-}
-
 // Crée la séance + ses stats du créateur en un mini-batch (2-3 requêtes, jamais N).
 // Le feeling/commentaire est propre au créateur (sa propre entrée), comme pour
 // chaque autre participant.
@@ -161,14 +151,20 @@ export async function createSession({ title, date, durationMin, photo, feeling, 
     .single();
   if (error) throw error;
 
-  if (participantIds.length) {
-    const { error: pErr } = await supabase
-      .from("session_participants")
-      .insert(participantIds.map((uid) => ({ session_id: session.id, user_id: uid })));
-    if (pErr) throw pErr;
+  // Si la suite échoue, on supprime la séance tout juste créée : sinon elle resterait
+  // publiée sans stats, et réessayer en créerait une deuxième.
+  try {
+    if (participantIds.length) {
+      const { error: pErr } = await supabase
+        .from("session_participants")
+        .insert(participantIds.map((uid) => ({ session_id: session.id, user_id: uid })));
+      if (pErr) throw pErr;
+    }
+    await writeEntry(session.id, creatorId, ownExercises, { bodyweightKg, feeling, comment, sessionTypes });
+  } catch (e) {
+    await supabase.from("sessions").delete().eq("id", session.id);
+    throw e;
   }
-
-  await writeEntry(session.id, creatorId, ownExercises, { bodyweightKg, feeling, comment, sessionTypes });
   return session.id;
 }
 
@@ -186,22 +182,28 @@ export async function editSession(sessionId, { title, date, durationMin, photo, 
   if (error) throw error;
 
   // On remplace la liste de participants (le créateur n'y figure jamais explicitement).
-  await supabase.from("session_participants").delete().eq("session_id", sessionId);
+  const { error: delErr } = await supabase.from("session_participants").delete().eq("session_id", sessionId);
+  if (delErr) throw delErr;
   if (participantIds.length) {
-    await supabase
+    const { error: insErr } = await supabase
       .from("session_participants")
       .insert(participantIds.map((uid) => ({ session_id: sessionId, user_id: uid })));
+    if (insErr) throw insErr;
   }
 
   // Retire les stats de ceux qui ne sont plus participants (cascade supprime
   // automatiquement leurs exercices/séries via ON DELETE CASCADE).
   const keep = new Set([creatorId, ...participantIds]);
-  const { data: existingEntries } = await supabase
+  const { data: existingEntries, error: listErr } = await supabase
     .from("session_entries")
     .select("id, user_id")
     .eq("session_id", sessionId);
-  const toRemove = (existingEntries || []).filter((e) => !keep.has(e.user_id)).map((e) => e.id);
-  if (toRemove.length) await supabase.from("session_entries").delete().in("id", toRemove);
+  if (listErr) throw listErr;
+  const toRemove = existingEntries.filter((e) => !keep.has(e.user_id)).map((e) => e.id);
+  if (toRemove.length) {
+    const { error: rmErr } = await supabase.from("session_entries").delete().in("id", toRemove);
+    if (rmErr) throw rmErr;
+  }
 }
 
 export async function deleteSession(sessionId) {

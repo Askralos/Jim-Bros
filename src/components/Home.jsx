@@ -5,7 +5,7 @@ import { COLORS } from "../lib/constants";
 import { todayKey, fmtDate, fmtDuration, volumeOf } from "../lib/utils";
 import { AvatarStack } from "./Avatar";
 
-export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSession, onSeeCalendar }) {
+export function Home({ currentUserId, profiles, sessions, ready, onOpenSession, onNewSession, onSeeCalendar }) {
   const days = useMemo(() => {
     const arr = [];
     for (let i = 6; i >= 0; i--) {
@@ -56,7 +56,7 @@ export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSe
         })}
       </div>
 
-      {!postedToday && (
+      {ready && !postedToday && (
         <button style={styles.ctaBanner} onClick={onNewSession}>
           <Camera size={16} /><span>Pas encore posté aujourd'hui — go séance</span><ChevronRight size={16} />
         </button>
@@ -67,7 +67,7 @@ export function Home({ currentUserId, profiles, sessions, onOpenSession, onNewSe
         <button style={styles.linkBtn} onClick={onSeeCalendar}>Voir plus</button>
       </div>
 
-      {sessions.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Personne n'a encore posté de séance. Sois le premier.</p>}
+      {ready && sessions.length === 0 && <p style={{ color: COLORS.muted, fontSize: 13 }}>Personne n'a encore posté de séance. Sois le premier.</p>}
 
       {thisWeek.length > 0 && (
         <>
@@ -118,7 +118,7 @@ function SessionList({ sessions, profiles, onOpenSession }) {
   );
 }
 
-export function SessionFeedCard({ session, profiles, onClick }) {
+function SessionFeedCard({ session, profiles, onClick }) {
   const participants = session.participants;
   const submittedVolume = Object.values(session.entries).reduce((t, e) => t + volumeOf(e.exercises, e.bodyweightKg), 0);
   return (

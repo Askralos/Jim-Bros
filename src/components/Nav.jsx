@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Dumbbell, LogOut, Calendar, Trophy, Plus, Users, BookOpen, User, X } from "lucide-react";
+import { Dumbbell, LogOut, Calendar, Trophy, Plus, Users, BookOpen, User } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
 import { signOut } from "../lib/api/auth";
 import { PresetsEditor } from "./PresetsEditor";
+import { Modal } from "./Modal";
 
 export function TopBar({ profile }) {
   return (
@@ -14,7 +15,7 @@ export function TopBar({ profile }) {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ fontSize: 13, color: COLORS.muted }}>{profile?.display_name}</span>
-        <button style={styles.iconBtn} onClick={signOut} aria-label="Déconnexion"><LogOut size={16} /></button>
+        <button style={styles.iconBtn} onClick={() => { if (confirm("Se déconnecter ?")) signOut(); }} aria-label="Déconnexion"><LogOut size={16} /></button>
       </div>
     </div>
   );
@@ -58,36 +59,25 @@ export function NewSessionChooser({
   const [showPresets, setShowPresets] = useState(false);
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>Nouvelle séance</span>
-        </div>
-        <button style={{ ...styles.primaryBtn, marginBottom: 10 }} onClick={onBlank}>Séance vierge</button>
-        <button style={styles.secondaryBtn} onClick={() => setShowPresets(true)}>Depuis un preset</button>
-        <button style={{ ...styles.secondaryBtn, marginTop: 14 }} onClick={onClose}>Annuler</button>
-      </div>
+    <Modal title="Nouvelle séance" onClose={onClose} onDismiss={false}>
+      <button style={{ ...styles.primaryBtn, marginBottom: 10 }} onClick={onBlank}>Séance vierge</button>
+      <button style={styles.secondaryBtn} onClick={() => setShowPresets(true)}>Depuis un preset</button>
+      <button style={{ ...styles.secondaryBtn, marginTop: 14 }} onClick={onClose}>Annuler</button>
 
       {showPresets && (
-        <div style={styles.modalBackdrop} onClick={(e) => { e.stopPropagation(); setShowPresets(false); }}>
-          <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ fontWeight: 700 }}>Choisir un preset</span>
-              <button style={styles.iconBtn} onClick={() => setShowPresets(false)}><X size={16} /></button>
-            </div>
-            <PresetsEditor
-              exerciseList={exerciseList}
-              currentUserId={currentUserId}
-              profiles={profiles}
-              presets={presets}
-              onCreate={onCreatePreset}
-              onUpdate={onUpdatePreset}
-              onDelete={onDeletePreset}
-              onSelect={(p) => { onPreset(p); setShowPresets(false); }}
-            />
-          </div>
-        </div>
+        <Modal title="Choisir un preset" onClose={() => setShowPresets(false)}>
+          <PresetsEditor
+            exerciseList={exerciseList}
+            currentUserId={currentUserId}
+            profiles={profiles}
+            presets={presets}
+            onCreate={onCreatePreset}
+            onUpdate={onUpdatePreset}
+            onDelete={onDeletePreset}
+            onSelect={(p) => { onPreset(p); setShowPresets(false); }}
+          />
+        </Modal>
       )}
-    </div>
+    </Modal>
   );
 }

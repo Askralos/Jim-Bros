@@ -1,18 +1,13 @@
-import { useState, useRef, useEffect } from "react";
-import { X, Check, Camera, Trash2, ChevronDown, Loader2, Calendar, Clock, Link2, GitCompare } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Calendar, Clock, Link2 } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS, SESSION_FEELINGS, feelingLabel } from "../lib/constants";
-import { fmtDate, fmtTime, fmtDuration, presetToExercises, groupSupersets, groupDrops, formatSet, isSetFilled } from "../lib/utils";
+import { COLORS, feelingLabel } from "../lib/constants";
+import { fmtDate, fmtTime, fmtDuration, groupSupersets, groupDrops, formatSet, isSetFilled } from "../lib/utils";
 import { Avatar } from "./Avatar";
-import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
-import { DurationInput } from "./DurationInput";
-import { GuestPills } from "./GuestPicker";
-import { SessionTypePicker, SessionTypeBadges } from "./SessionTypes";
-import { FloatingTimer } from "./FloatingTimer";
-import { PresetsEditor } from "./PresetsEditor";
-import { ComparePicker, CompareReference } from "./CompareSession";
-import { uploadPhoto } from "../lib/api/storage";
-import { getLatestWeight } from "../lib/api/profiles";
+import { SessionTypeBadges } from "./SessionTypes";
+import { Modal } from "./Modal";
+import { SessionEntryForm, entryDraftFrom } from "./SessionEntryForm";
+import { SessionEditForm, sessionMetaFrom } from "./SessionEditForm";
 
 // Photo(s) de la séance : la principale (ma photo perso si j'en ai mis une, sinon
 // celle de la séance), puis celles des autres participants en miniatures pour
@@ -104,66 +99,49 @@ function SetChip({ number, s, drops = [] }) {
   );
 }
 
+// Détail d'une séance : photos, infos, stats de chaque participant. Bascule vers les
+// formulaires "mes stats" (SessionEntryForm) et "modifier la séance" (SessionEditForm),
+// dont les brouillons vivent ici pour survivre à un aller-retour entre les vues.
 export function SessionModal({
   session, sessions = [], profiles, currentUserId, exerciseList, otherProfiles,
   presets, onCreatePreset, onUpdatePreset, onDeletePreset,
   onClose, onSubmitEntry, onDeleteEntry, onEditSession, onDeleteSession,
 }) {
-  const [mode, setMode] = useState("view");
+  const [mode, setMode] = useState("view"); // "view" | "fillEntry" | "editEntry" | "editSession"
   const myEntry = session.entries[currentUserId];
-  const [formExercises, setFormExercises] = useState(() =>
-    myEntry
-      ? myEntry.exercises.map((e) => ({
-          ...e,
-          sets: e.sets.map((s) => ({
-            ...s,
-            reps: s.reps ?? "",
-            seconds: s.seconds ?? "",
-            weight: s.weight ?? "",
-            restSeconds: s.restSeconds ?? "",
-            targetMin: s.targetMin ?? "",
-            targetMax: s.targetMax ?? "",
-          })),
-        }))
-      : [emptyExercise()]
-  );
-  const [formBodyweightKg, setFormBodyweightKg] = useState(myEntry?.bodyweightKg ?? "");
-  const [formFeeling, setFormFeeling] = useState(myEntry?.feeling || null);
-  const [formComment, setFormComment] = useState(myEntry?.comment || "");
-  const [formTitle, setFormTitle] = useState(myEntry?.title || "");
-  const [formTypes, setFormTypes] = useState(myEntry?.sessionTypes || []);
-  const [formPhoto, setFormPhoto] = useState(myEntry?.photo || null);
-  const [uploadingEntry, setUploadingEntry] = useState(false);
-  const [editMeta, setEditMeta] = useState({
-    title: (session.sharedTitle ?? session.title) || "", date: session.date, durationMin: session.durationMin || "",
-    photo: (session.sharedPhoto ?? session.photo) || null,
-    participants: session.participants.filter((u) => u !== session.creator),
-    guests: session.guests || [],
-  });
-  const [uploadingSession, setUploadingSession] = useState(false);
+  const [entryDraft, setEntryDraft] = useState(() => entryDraftFrom(myEntry));
+  const [sessionMeta, setSessionMeta] = useState(() => sessionMetaFrom(session));
   const [expanded, setExpanded] = useState(() => new Set([currentUserId]));
-  const [submittingEntry, setSubmittingEntry] = useState(false);
-  const [submittingSession, setSubmittingSession] = useState(false);
-  const [entryError, setEntryError] = useState("");
-  const [sessionError, setSessionError] = useState("");
-  const [showPresetPicker, setShowPresetPicker] = useState(false);
-  const [compareSessionId, setCompareSessionId] = useState(null);
-  const [showComparePicker, setShowComparePicker] = useState(false);
-  const compareSession = sessions.find((s) => s.id === compareSessionId) || null;
-  const editFileRef = useRef(null);
-  const editGalleryRef = useRef(null);
-  const entryFileRef = useRef(null);
-  const entryGalleryRef = useRef(null);
-
-  useEffect(() => {
-    if (myEntry?.bodyweightKg == null) {
-      getLatestWeight(currentUserId).then((w) => { if (w != null) setFormBodyweightKg(w); }).catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const participants = session.participants;
   const isCreator = currentUserId === session.creator;
+  const toggleExpanded = (id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  if (mode === "fillEntry" || mode === "editEntry") {
+    return (
+      <SessionEntryForm
+        session={session} isNew={mode === "fillEntry"} draft={entryDraft} onDraftChange={setEntryDraft}
+        sessions={sessions} profiles={profiles} currentUserId={currentUserId} exerciseList={exerciseList}
+        presets={presets} onCreatePreset={onCreatePreset} onUpdatePreset={onUpdatePreset} onDeletePreset={onDeletePreset}
+        onSubmit={onSubmitEntry}
+        onDelete={() => { onDeleteEntry(); setEntryDraft(entryDraftFrom(null)); setMode("view"); }}
+        onBack={() => setMode("view")}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (mode === "editSession") {
+    return (
+      <SessionEditForm
+        session={session} meta={sessionMeta} onMetaChange={setSessionMeta} otherProfiles={otherProfiles}
+        onSubmit={onEditSession} onDelete={onDeleteSession}
+        onBack={() => setMode("view")}
+        onClose={onClose}
+      />
+    );
+  }
+
   // La mienne d'abord (session.photo = ma photo perso s'il y en a une), puis celle de
   // la séance, puis les photos perso des autres participants.
   const photos = [];
@@ -173,390 +151,117 @@ export function SessionModal({
   addPhoto(session.sharedPhoto, `Photo de ${nameOf(session.creator)}`);
   participants.forEach((id) => addPhoto(session.entries[id]?.photo, `Photo de ${nameOf(id)}`));
 
-  const handleEditPhoto = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploadingSession(true);
-    try {
-      const url = await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 });
-      setEditMeta((m) => ({ ...m, photo: url }));
-    } finally { setUploadingSession(false); }
-  };
-  const handleEntryPhoto = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploadingEntry(true);
-    try { setFormPhoto(await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 })); } finally { setUploadingEntry(false); }
-  };
-  const toggleEditParticipant = (id) => {
-    setEditMeta((m) => ({ ...m, participants: m.participants.includes(id) ? m.participants.filter((x) => x !== id) : [...m.participants, id] }));
-  };
-  const toggleExpanded = (id) => setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const applyPreset = (preset) => {
-    if (cleanExercises(formExercises).length > 0 && !confirm("Remplacer tes exercices actuels par ceux du preset ?")) return;
-    setFormExercises(presetToExercises(preset));
-    setShowPresetPicker(false);
-  };
-
-  if (mode === "fillEntry" || mode === "editEntry") {
-    const clean = cleanExercises(formExercises);
-    return (
-      <div style={styles.modalBackdrop} onClick={onClose}>
-        <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontWeight: 700 }}>{mode === "fillEntry" ? "Ajouter mes stats" : "Modifier mes stats"}</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              {mode === "editEntry" && (
-                <button style={styles.iconBtn} onClick={() => { if (confirm("Supprimer tes stats de cette séance ?")) { onDeleteEntry(); setMode("view"); } }} aria-label="Supprimer mes stats">
-                  <Trash2 size={16} color={COLORS.flame} />
-                </button>
-              )}
-              <button style={styles.iconBtn} onClick={() => setMode("view")}><X size={16} /></button>
-            </div>
-          </div>
-
-          {!isCreator && (
-            <div style={{ background: COLORS.surface2, borderRadius: 10, padding: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, display: "block" }}>Ta version de la séance (optionnel)</span>
-              <span style={{ fontSize: 11, color: COLORS.muted, display: "block", marginBottom: 8 }}>
-                Titre et photo visibles seulement par toi{session.sharedTitle ? ` : les autres voient toujours « ${session.sharedTitle} »` : ""}.
-              </span>
-              <input style={styles.input} placeholder={session.sharedTitle ? `Ton titre (ex: Legs au lieu de ${session.sharedTitle})` : "Ton titre (ex: Legs)"} value={formTitle} onChange={(e) => setFormTitle(e.target.value)} />
-              <div style={{ ...styles.photoZone, marginBottom: 6 }} onClick={() => entryFileRef.current?.click()}>
-                {formPhoto ? (
-                  <img src={formPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                    <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingEntry ? "Envoi..." : "Ta photo (optionnel)"}</span>
-                  </div>
-                )}
-              </div>
-              <input ref={entryFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEntryPhoto} />
-              <input ref={entryGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEntryPhoto} />
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button style={styles.linkBtn} onClick={() => entryGalleryRef.current?.click()}>ou choisir depuis la galerie</button>
-                {formPhoto && <button style={styles.linkBtn} onClick={() => setFormPhoto(null)}>Retirer la photo</button>}
-              </div>
-            </div>
-          )}
-
-          <label style={styles.label}>Type de séance (optionnel)</label>
-          <SessionTypePicker value={formTypes} onChange={setFormTypes} />
-
-          <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
-          <input style={styles.input} type="number" placeholder="Poids du jour" value={formBodyweightKg} onChange={(e) => setFormBodyweightKg(e.target.value)} />
-
-          {presets.length > 0 && (
-            <button style={styles.secondaryBtn} onClick={() => setShowPresetPicker(true)}>Depuis un preset</button>
-          )}
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
-            <span style={styles.label}>Tes exercices</span>
-            {!compareSession && (
-              <button style={{ ...styles.linkBtn, display: "flex", alignItems: "center", gap: 4 }} onClick={() => setShowComparePicker(true)}>
-                <GitCompare size={13} />Comparer
-              </button>
-            )}
-          </div>
-          {compareSession && (
-            <CompareReference
-              session={compareSession}
-              currentUserId={currentUserId}
-              onChange={() => setShowComparePicker(true)}
-              onRemove={() => setCompareSessionId(null)}
-            />
-          )}
-
-          <ExercisesEditor exercises={formExercises} onChange={setFormExercises} exerciseList={exerciseList} />
-
-          <label style={{ ...styles.label, marginTop: 4 }}>Ton feeling (optionnel)</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {SESSION_FEELINGS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFormFeeling((cur) => (cur === f.key ? null : f.key))}
-                style={{ ...styles.tabPill, ...(formFeeling === f.key ? styles.tabPillActive : {}) }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <label style={styles.label}>Ton commentaire (optionnel)</label>
-          <textarea
-            style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
-            placeholder="Comment as-tu vécu la séance ?"
-            value={formComment}
-            onChange={(e) => setFormComment(e.target.value)}
-          />
-
-          <FloatingTimer />
-
-          {entryError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{entryError}</p>}
-
-          <button
-            style={styles.primaryBtn}
-            disabled={!clean.length || submittingEntry || uploadingEntry}
-            onClick={async () => {
-              if (submittingEntry) return;
-              setSubmittingEntry(true);
-              setEntryError("");
-              try {
-                await onSubmitEntry(clean, {
-                  bodyweightKg: formBodyweightKg !== "" ? Number(formBodyweightKg) : null,
-                  feeling: formFeeling,
-                  comment: formComment,
-                  sessionTypes: formTypes,
-                  personal: isCreator ? undefined : { title: formTitle, photo: formPhoto },
-                });
-                setMode("view");
-              } catch (e) {
-                setEntryError(e.message || "L'enregistrement a échoué. Réessaie.");
-              } finally {
-                setSubmittingEntry(false);
-              }
-            }}
-          >
-            {submittingEntry ? (
-              <><Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />Enregistrement...</>
-            ) : (
-              <><Check size={16} style={{ marginRight: 6 }} />Enregistrer</>
-            )}
-          </button>
-        </div>
-
-        {showComparePicker && (
-          <ComparePicker
-            sessions={sessions}
-            currentUserId={currentUserId}
-            excludeId={session.id}
-            onClose={() => setShowComparePicker(false)}
-            onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
-          />
-        )}
-
-        {showPresetPicker && (
-          <div style={styles.modalBackdrop} onClick={(e) => { e.stopPropagation(); setShowPresetPicker(false); }}>
-            <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontWeight: 700 }}>Choisir un preset</span>
-                <button style={styles.iconBtn} onClick={() => setShowPresetPicker(false)}><X size={16} /></button>
-              </div>
-              <PresetsEditor
-                exerciseList={exerciseList}
-                currentUserId={currentUserId}
-                profiles={profiles}
-                presets={presets}
-                onCreate={onCreatePreset}
-                onUpdate={onUpdatePreset}
-                onDelete={onDeletePreset}
-                onSelect={applyPreset}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (mode === "editSession") {
-    return (
-      <div style={styles.modalBackdrop} onClick={onClose}>
-        <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontWeight: 700 }}>Modifier la séance</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button style={styles.iconBtn} onClick={() => { if (confirm("Supprimer cette séance pour tout le monde ?")) onDeleteSession(); }} aria-label="Supprimer la séance">
-                <Trash2 size={16} color={COLORS.flame} />
-              </button>
-              <button style={styles.iconBtn} onClick={() => setMode("view")}><X size={16} /></button>
-            </div>
-          </div>
-
-          <div style={styles.photoZone} onClick={() => editFileRef.current?.click()}>
-            {editMeta.photo ? (
-              <img src={editMeta.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                <Camera size={22} /><span style={{ fontSize: 12 }}>{uploadingSession ? "Envoi..." : "Prendre une photo (optionnel)"}</span>
-              </div>
-            )}
-          </div>
-          <input ref={editFileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleEditPhoto} />
-          <input ref={editGalleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleEditPhoto} />
-          <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-            <button style={styles.linkBtn} onClick={() => editGalleryRef.current?.click()}>ou galerie</button>
-            {editMeta.photo && <button style={styles.linkBtn} onClick={() => setEditMeta((m) => ({ ...m, photo: null }))}>Retirer la photo</button>}
-          </div>
-
-          <input style={styles.input} placeholder="Titre" value={editMeta.title} onChange={(e) => setEditMeta({ ...editMeta, title: e.target.value })} />
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={editMeta.date} onChange={(e) => setEditMeta({ ...editMeta, date: e.target.value })} />
-            <DurationInput valueMin={editMeta.durationMin} onChange={(v) => setEditMeta({ ...editMeta, durationMin: v })} />
-          </div>
-
-          <label style={styles.label}>Fait avec</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, alignItems: "center" }}>
-            {otherProfiles.map((p) => (
-              <button key={p.id} onClick={() => toggleEditParticipant(p.id)} style={{ ...styles.tabPill, ...(editMeta.participants.includes(p.id) ? styles.tabPillActive : {}) }}>
-                {p.display_name}
-              </button>
-            ))}
-            <GuestPills guests={editMeta.guests} onChange={(guests) => setEditMeta((m) => ({ ...m, guests }))} />
-          </div>
-          {otherProfiles.length > 0 && (
-            <p style={{ fontSize: 11, color: COLORS.muted, marginTop: -8, marginBottom: 14 }}>
-              Retirer quelqu'un supprime ses stats déjà enregistrées pour cette séance.
-            </p>
-          )}
-
-          {sessionError && <p style={{ color: COLORS.flame, fontSize: 13, marginBottom: 8 }}>{sessionError}</p>}
-
-          <button
-            style={styles.primaryBtn}
-            disabled={uploadingSession || submittingSession}
-            onClick={async () => {
-              if (submittingSession) return;
-              setSubmittingSession(true);
-              setSessionError("");
-              try {
-                await onEditSession({
-                  title: editMeta.title.trim(), date: editMeta.date,
-                  durationMin: editMeta.durationMin ? Number(editMeta.durationMin) : null,
-                  photo: editMeta.photo,
-                  participantIds: editMeta.participants, guestNames: editMeta.guests, creatorId: session.creator,
-                });
-                setMode("view");
-              } catch (e) {
-                setSessionError(e.message || "L'enregistrement a échoué. Réessaie.");
-              } finally {
-                setSubmittingSession(false);
-              }
-            }}
-          >
-            {submittingSession ? (
-              <><Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />Enregistrement...</>
-            ) : (
-              <><Check size={16} style={{ marginRight: 6 }} />Enregistrer</>
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const title = (
+    <>
+      <span style={{ display: "block" }}>{session.title || "Séance"}</span>
+      {session.sharedTitle && session.title !== session.sharedTitle && (
+        <span style={{ fontSize: 11, fontWeight: 400, color: COLORS.muted }}>Séance de {profiles[session.creator]?.display_name || "?"} : {session.sharedTitle}</span>
+      )}
+    </>
+  );
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <span style={{ fontWeight: 700, display: "block" }}>{session.title || "Séance"}</span>
-            {session.sharedTitle && session.title !== session.sharedTitle && (
-              <span style={{ fontSize: 11, color: COLORS.muted }}>Séance de {profiles[session.creator]?.display_name || "?"} : {session.sharedTitle}</span>
-            )}
-          </div>
-          <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
-        </div>
-        <SessionPhoto photos={photos} />
-        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+    <Modal title={title} onClose={onClose}>
+      <SessionPhoto photos={photos} />
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
+          <Calendar size={13} />{fmtDate(session.date)}
+        </span>
+        {session.createdAt && (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
-            <Calendar size={13} />{fmtDate(session.date)}
+            <Clock size={13} />
+            Publiée à {fmtTime(session.createdAt)}{session.durationMin ? ` · ${fmtDuration(session.durationMin)}` : ""}
           </span>
-          {session.createdAt && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: COLORS.muted }}>
-              <Clock size={13} />
-              Publiée à {fmtTime(session.createdAt)}{session.durationMin ? ` · ${fmtDuration(session.durationMin)}` : ""}
-            </span>
-          )}
-        </div>
-
-        {session.guests?.length > 0 && (
-          <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -6, marginBottom: 14 }}>
-            Aussi présent{session.guests.length > 1 ? "s" : ""} (sans compte) : <span style={{ color: COLORS.chalk }}>{session.guests.join(", ")}</span>
-          </p>
-        )}
-
-        {participants.map((id) => {
-          const entry = session.entries[id];
-          const mine = id === currentUserId;
-          const solo = participants.length === 1;
-          const isOpen = solo || expanded.has(id);
-          return (
-            <div key={id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${COLORS.line}` }}>
-              {!solo && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => toggleExpanded(id)}>
-                  <Avatar profile={profiles[id]} size={26} />
-                  <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{profiles[id]?.display_name || "?"}</span>
-                  {entry ? <span style={{ fontSize: 11, color: COLORS.lime }}>Fait</span> : <span style={{ fontSize: 11, color: COLORS.muted }}>En attente</span>}
-                  <ChevronDown size={14} color={COLORS.muted} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
-                </div>
-              )}
-              {isOpen && (
-                <>
-                  {entry ? (
-                    <>
-                      {entry.sessionTypes?.length > 0 && <div style={{ marginBottom: 10 }}><SessionTypeBadges types={entry.sessionTypes} /></div>}
-                      {groupSupersets(entry.exercises).map((block) => {
-                        const renderEx = ({ ex, index }, inSuperset) => (
-                          <div key={index} style={{ marginBottom: inSuperset ? 10 : 18 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {groupDrops(ex.sets).map((g) => <SetChip key={g.index} number={g.number} s={g.set} drops={g.drops.map((d) => d.set)} />)}
-                            </div>
-                          </div>
-                        );
-                        if (block.group == null || block.items.length < 2) return renderEx(block.items[0], false);
-                        return (
-                          <div key={`superset-${block.items[0].index}`} style={{ borderLeft: `2px solid ${COLORS.lime}`, paddingLeft: 10, marginBottom: 18 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                              <Link2 size={12} color={COLORS.lime} />
-                              <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.lime, textTransform: "uppercase", letterSpacing: 0.5 }}>Superset</span>
-                            </div>
-                            {block.items.map((item) => renderEx(item, true))}
-                          </div>
-                        );
-                      })}
-                      {(entry.feeling || mine) && (
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-                          {entry.feeling ? (
-                            <span
-                              style={{
-                                display: "inline-block", fontSize: 11, fontWeight: 700, color: COLORS.lime,
-                                background: "rgba(201,245,66,0.12)", border: "1px solid rgba(201,245,66,0.35)",
-                                borderRadius: 20, padding: "3px 10px",
-                              }}
-                            >
-                              {feelingLabel(entry.feeling)}
-                            </span>
-                          ) : <span />}
-                          {mine && (
-                            <button style={styles.linkBtn} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
-                          )}
-                        </div>
-                      )}
-                      {entry.comment && (
-                        <p
-                          style={{
-                            fontSize: 13, color: COLORS.chalk, marginTop: 8, marginBottom: 0, lineHeight: 1.4, whiteSpace: "pre-wrap",
-                            background: COLORS.surface2, borderRadius: 8, padding: "8px 10px",
-                          }}
-                        >
-                          {entry.comment}
-                        </p>
-                      )}
-                    </>
-                  ) : mine ? (
-                    <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
-                  ) : null}
-                </>
-              )}
-            </div>
-          );
-        })}
-
-        {isCreator && (
-          <button style={styles.secondaryBtn} onClick={() => setMode("editSession")}>Modifier la séance</button>
         )}
       </div>
-    </div>
+
+      {session.guests?.length > 0 && (
+        <p style={{ fontSize: 12, color: COLORS.muted, marginTop: -6, marginBottom: 14 }}>
+          Aussi présent{session.guests.length > 1 ? "s" : ""} (sans compte) : <span style={{ color: COLORS.chalk }}>{session.guests.join(", ")}</span>
+        </p>
+      )}
+
+      {participants.map((id) => {
+        const entry = session.entries[id];
+        const mine = id === currentUserId;
+        const solo = participants.length === 1;
+        const isOpen = solo || expanded.has(id);
+        return (
+          <div key={id} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${COLORS.line}` }}>
+            {!solo && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, cursor: "pointer" }} onClick={() => toggleExpanded(id)}>
+                <Avatar profile={profiles[id]} size={26} />
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{profiles[id]?.display_name || "?"}</span>
+                {entry ? <span style={{ fontSize: 11, color: COLORS.lime }}>Fait</span> : <span style={{ fontSize: 11, color: COLORS.muted }}>En attente</span>}
+                <ChevronDown size={14} color={COLORS.muted} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
+              </div>
+            )}
+            {isOpen && (
+              <>
+                {entry ? (
+                  <>
+                    {entry.sessionTypes?.length > 0 && <div style={{ marginBottom: 10 }}><SessionTypeBadges types={entry.sessionTypes} /></div>}
+                    {groupSupersets(entry.exercises).map((block) => {
+                      const renderEx = ({ ex, index }, inSuperset) => (
+                        <div key={index} style={{ marginBottom: inSuperset ? 10 : 18 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.chalk, display: "block", marginBottom: 5 }}>{ex.name}</span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {groupDrops(ex.sets).map((g) => <SetChip key={g.index} number={g.number} s={g.set} drops={g.drops.map((d) => d.set)} />)}
+                          </div>
+                        </div>
+                      );
+                      if (block.group == null || block.items.length < 2) return renderEx(block.items[0], false);
+                      return (
+                        <div key={`superset-${block.items[0].index}`} style={{ borderLeft: `2px solid ${COLORS.lime}`, paddingLeft: 10, marginBottom: 18 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                            <Link2 size={12} color={COLORS.lime} />
+                            <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.lime, textTransform: "uppercase", letterSpacing: 0.5 }}>Superset</span>
+                          </div>
+                          {block.items.map((item) => renderEx(item, true))}
+                        </div>
+                      );
+                    })}
+                    {(entry.feeling || mine) && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                        {entry.feeling ? (
+                          <span
+                            style={{
+                              display: "inline-block", fontSize: 11, fontWeight: 700, color: COLORS.lime,
+                              background: "rgba(201,245,66,0.12)", border: "1px solid rgba(201,245,66,0.35)",
+                              borderRadius: 20, padding: "3px 10px",
+                            }}
+                          >
+                            {feelingLabel(entry.feeling)}
+                          </span>
+                        ) : <span />}
+                        {mine && (
+                          <button style={styles.linkBtn} onClick={() => setMode("editEntry")}>Modifier mes stats</button>
+                        )}
+                      </div>
+                    )}
+                    {entry.comment && (
+                      <p
+                        style={{
+                          fontSize: 13, color: COLORS.chalk, marginTop: 8, marginBottom: 0, lineHeight: 1.4, whiteSpace: "pre-wrap",
+                          background: COLORS.surface2, borderRadius: 8, padding: "8px 10px",
+                        }}
+                      >
+                        {entry.comment}
+                      </p>
+                    )}
+                  </>
+                ) : mine ? (
+                  <button style={styles.secondaryBtn} onClick={() => setMode("fillEntry")}>Ajouter mes stats</button>
+                ) : null}
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {isCreator && (
+        <button style={styles.secondaryBtn} onClick={() => setMode("editSession")}>Modifier la séance</button>
+      )}
+    </Modal>
   );
 }

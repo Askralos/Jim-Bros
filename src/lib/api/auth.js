@@ -1,4 +1,5 @@
 import { supabase } from "../supabaseClient";
+import { clearCache } from "../cache";
 
 // Supabase Auth exige un email. On en fabrique un à partir du pseudo pour garder
 // une expérience "identifiant + mot de passe" côté utilisateur — invisible pour eux.
@@ -33,6 +34,7 @@ export async function signIn(username, password) {
 }
 
 export async function signOut() {
+  clearCache();
   await supabase.auth.signOut();
 }
 

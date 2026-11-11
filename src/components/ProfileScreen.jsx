@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, TrendingUp, ChevronRight, Pencil } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { Check, TrendingUp, ChevronRight, Pencil, X } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, MEASUREMENT_TYPES } from "../lib/constants";
 import { fmtDate, todayKey, computeProfileInsights } from "../lib/utils";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
+import { MiniLineChart } from "./MiniLineChart";
+import { Modal } from "./Modal";
 import { uploadPhoto } from "../lib/api/storage";
 import { addWeightEntry, getWeightHistory, addMeasurementEntry, getMeasurementHistory } from "../lib/api/profiles";
 import { getUserHistory } from "../lib/api/sessions";
@@ -29,6 +30,9 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
 
   useEffect(() => { loadWeightHistory(); }, [loadWeightHistory]);
   useEffect(() => { getUserHistory(currentUserId, { personalTitles: true }).then(setHistory); }, [currentUserId]);
+  // Resynchronise le formulaire quand une de ces valeurs change en base (autre
+  // appareil, pesée...), sans écraser la saisie en cours à chaque rechargement du profil.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setForm(profile); }, [profile.weight_kg, profile.body_fat_pct, profile.objectif, profile.avatar_url, profile.arm_cm, profile.chest_cm, profile.waist_cm, profile.thigh_cm]);
 
   const { myEntries, bestProgress } = useMemo(
@@ -142,8 +146,10 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
       {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} />}
 
       {showWeightModal && (
-        <WeightModal
-          weightHistory={weightHistory}
+        <TrackingModal
+          title="Suivi du poids" unit="kg" placeholder="Poids (kg)" addLabel="Ajouter cette pesée"
+          emptyText="Ajoute au moins deux pesées pour voir le graphique."
+          history={weightHistory.map((h) => ({ logged_on: h.logged_on, value: h.weight_kg }))}
           onClose={() => setShowWeightModal(false)}
           onAdd={async (w, date) => { await addWeightEntry(currentUserId, w, date); await loadWeightHistory(); await onRefresh(); }}
         />
@@ -162,114 +168,69 @@ export function ProfileScreen({ currentUserId, profile, prs, exerciseList, onSav
   );
 }
 
-function WeightModal({ weightHistory, onClose, onAdd }) {
-  const [weight, setWeight] = useState("");
-  const [date, setDate] = useState(todayKey());
-  const chartData = weightHistory.map((h) => ({ date: h.logged_on.slice(5), weight: h.weight_kg }));
-
-  return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>Suivi du poids</span>
-          <button style={styles.iconBtn} onClick={onClose}>✕</button>
-        </div>
-        {chartData.length > 1 ? (
-          <div style={{ width: "100%", height: 160, marginBottom: 16 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide domain={["dataMin - 2", "dataMax + 2"]} />
-                <Tooltip contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="weight" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p style={{ color: COLORS.muted, fontSize: 13, marginBottom: 14 }}>Ajoute au moins deux pesées pour voir le graphique.</p>
-        )}
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="number" placeholder="Poids (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} />
-          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <button style={styles.primaryBtn} disabled={!weight} onClick={() => { onAdd(Number(weight), date); setWeight(""); }}>
-          <Check size={16} style={{ marginRight: 6 }} />Ajouter cette pesée
-        </button>
-        {weightHistory.length > 0 && (
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-            {[...weightHistory].reverse().slice(0, 8).map((h) => (
-              <div key={h.logged_on} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.muted }}>
-                <span>{fmtDate(h.logged_on)}</span><span style={{ color: COLORS.chalk }}>{h.weight_kg} kg</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Même principe que WeightModal, généralisé aux 4 mesures corporelles (bras/poitrine/
-// taille/cuisse) désormais suivies dans le temps comme le poids.
-function MeasurementModal({ type, currentUserId, onClose, onSaved }) {
-  const [history, setHistory] = useState([]);
+// Modale de suivi d'une mesure dans le temps (poids, tours de bras/poitrine/taille/
+// cuisse) : courbe, ajout d'un relevé daté, et les derniers relevés.
+// history : [{ logged_on, value }] trié du plus ancien au plus récent.
+function TrackingModal({ title, history, unit, placeholder, addLabel, emptyText, onAdd, onClose }) {
   const [value, setValue] = useState("");
   const [date, setDate] = useState(todayKey());
-
-  const load = useCallback(async () => { setHistory(await getMeasurementHistory(currentUserId, type.key)); }, [currentUserId, type.key]);
-  useEffect(() => { load(); }, [load]);
-
-  const chartData = history.map((h) => ({ date: h.logged_on.slice(5), value: h.value_cm }));
+  const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    if (!value) return;
-    await addMeasurementEntry(currentUserId, type.key, Number(value), date);
-    setValue("");
-    await load();
-    await onSaved();
+    if (!value || saving) return;
+    setSaving(true);
+    try {
+      await onAdd(Number(value), date);
+      setValue("");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>{type.label}</span>
-          <button style={styles.iconBtn} onClick={onClose}>✕</button>
+    <Modal title={title} onClose={onClose}>
+      {history.length > 1 ? (
+        <div style={{ marginBottom: 16 }}>
+          <MiniLineChart points={history.map((h) => ({ label: fmtDate(h.logged_on), axisLabel: `${h.logged_on.slice(8, 10)}/${h.logged_on.slice(5, 7)}`, value: h.value }))} height={160} unit={` ${unit}`} pad={[2, 2]} showAxis />
         </div>
-        {chartData.length > 1 ? (
-          <div style={{ width: "100%", height: 160, marginBottom: 16 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: COLORS.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis hide domain={["dataMin - 2", "dataMax + 2"]} />
-                <Tooltip contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="value" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p style={{ color: COLORS.muted, fontSize: 13, marginBottom: 14 }}>Ajoute au moins deux mesures pour voir le graphique.</p>
-        )}
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="number" placeholder="Valeur (cm)" value={value} onChange={(e) => setValue(e.target.value)} />
-          <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <button style={styles.primaryBtn} disabled={!value} onClick={submit}>
-          <Check size={16} style={{ marginRight: 6 }} />Ajouter cette mesure
-        </button>
-        {history.length > 0 && (
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
-            {[...history].reverse().slice(0, 8).map((h) => (
-              <div key={h.logged_on} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.muted }}>
-                <span>{fmtDate(h.logged_on)}</span><span style={{ color: COLORS.chalk }}>{h.value_cm} cm</span>
-              </div>
-            ))}
-          </div>
-        )}
+      ) : (
+        <p style={{ color: COLORS.muted, fontSize: 13, marginBottom: 14 }}>{emptyText}</p>
+      )}
+      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="number" placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} />
+        <input style={{ ...styles.input, marginBottom: 0, flex: 1 }} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
-    </div>
+      <button style={styles.primaryBtn} disabled={!value || saving} onClick={submit}>
+        <Check size={16} style={{ marginRight: 6 }} />{addLabel}
+      </button>
+      {history.length > 0 && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+          {[...history].reverse().slice(0, 8).map((h) => (
+            <div key={h.logged_on} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: COLORS.muted }}>
+              <span>{fmtDate(h.logged_on)}</span><span style={{ color: COLORS.chalk }}>{h.value} {unit}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// Les 4 mesures corporelles (bras/poitrine/taille/cuisse) : l'historique est chargé
+// à l'ouverture, contrairement au poids (déjà chargé pour les cartes de progression).
+function MeasurementModal({ type, currentUserId, onClose, onSaved }) {
+  const [history, setHistory] = useState([]);
+  const load = useCallback(async () => { setHistory(await getMeasurementHistory(currentUserId, type.key)); }, [currentUserId, type.key]);
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <TrackingModal
+      title={type.label} unit="cm" placeholder="Valeur (cm)" addLabel="Ajouter cette mesure"
+      emptyText="Ajoute au moins deux mesures pour voir le graphique."
+      history={history.map((h) => ({ logged_on: h.logged_on, value: h.value_cm }))}
+      onAdd={async (value, date) => { await addMeasurementEntry(currentUserId, type.key, value, date); await load(); await onSaved(); }}
+      onClose={onClose}
+    />
   );
 }
 
@@ -302,7 +263,7 @@ function PrSection({ prs, exerciseList, onAdd, onDelete }) {
           <div key={pr.id} style={styles.prChip}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 11, color: COLORS.muted }}>{pr.exercise}</span>
-              <button style={{ ...styles.iconBtn, padding: 0 }} onClick={() => onDelete(pr.id)}>✕</button>
+              <button style={{ ...styles.iconBtn, padding: 0 }} onClick={() => onDelete(pr.id)} aria-label="Supprimer ce PR"><X size={13} /></button>
             </div>
             <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: COLORS.lime }}>{pr.value}{pr.unit}</span>
           </div>

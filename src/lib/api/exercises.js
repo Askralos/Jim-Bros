@@ -22,13 +22,8 @@ export async function addExercise(name, photoUrl, addedBy, tags = []) {
   }
 }
 
-export async function updateExercisePhoto(id, photoUrl) {
-  const { error } = await supabase.from("exercises").update({ photo_url: photoUrl }).eq("id", id);
-  if (error) throw error;
-}
-
-// currentUserId sert uniquement de garde-fou côté UI (RLS ouverte sur cette table) :
-// modifier/supprimer un exercice n'est proposé dans l'UI qu'à son créateur.
+// Modifier/supprimer un exercice est réservé aux admins (EXERCISE_ADMIN_USERNAMES),
+// côté UI comme côté base (RLS).
 export async function updateExercise(id, { name, tags, photoUrl }) {
   const patch = {};
   if (name !== undefined) patch.name = name.trim();

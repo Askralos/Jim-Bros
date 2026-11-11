@@ -33,7 +33,7 @@ export function SessionTypeBadges({ types }) {
 }
 
 // Filtre d'historique : uniquement les types effectivement utilisés.
-export function SessionTypeFilter({ entries, active, onChange }) {
+function SessionTypeFilter({ entries, active, onChange }) {
   const used = new Set(entries.flatMap((e) => e.sessionTypes || []));
   const keys = [...SESSION_SPLITS, ...EXERCISE_TAGS].map((t) => t.key).filter((k) => used.has(k));
   if (!keys.length) return null;

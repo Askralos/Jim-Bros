@@ -1,39 +1,51 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { getAllProfiles, getAllPRs } from "../lib/api/profiles";
-import { getSessions, getSessionsByIds, getSessionShells, getSessionCountsByUser, SESSIONS_PAGE_SIZE } from "../lib/api/sessions";
+import { getSessions, getSessionsByIds, getSessionShells, SESSIONS_PAGE_SIZE } from "../lib/api/sessions";
 import { mergeSessions } from "../lib/utils";
+import { loadCache, saveCache } from "../lib/cache";
 import { getExercises } from "../lib/api/exercises";
 import { getPresets } from "../lib/api/presets";
+
+// Au retour sur l'app (onglet/PWA remis au premier plan), on recharge si le dernier
+// chargement date de plus que ça : les events temps réel émis pendant que le
+// téléphone dormait sont perdus.
+const STALE_AFTER_MS = 30000;
 
 // Centralise le chargement des données partagées et les tient à jour en live via
 // Supabase Realtime : dès qu'un ami modifie une séance/entrée/PR/exercice, tout le
 // monde voit le changement sans avoir à rafraîchir manuellement.
 //
+// Ouverture instantanée : l'état part du cache local (voir lib/cache.js), puis est
+// remplacé par les données fraîches dès qu'elles arrivent.
+//
 // Le fil des séances (avec le détail complet exercices/séries de tout le monde)
 // est paginé : seules les SESSIONS_PAGE_SIZE plus récentes sont chargées par
 // défaut, et loadMoreSessions() permet d'aller chercher les plus anciennes à la
 // demande (ex: le calendrier qui remonte dans le temps). Les écrans qui ont besoin
-// de TOUT l'historique (classement, liste d'amis) utilisent sessionShells, une
-// version allégée sans exercices/séries, bien moins coûteuse sur tout l'historique.
+// de TOUT l'historique (liste d'amis, classement) utilisent sessionShells, une
+// version allégée sans exercices/séries, chargée seulement quand un de ces écrans
+// la demande (loadShells).
 //
 // Rafraîchissement ciblé : un changement ne recharge que ce qui a bougé (la séance
 // concernée, ou les profils, ou les PR...), jamais tout. Les events sont regroupés
 // sur 300 ms pour qu'une même écriture (plusieurs lignes) ne déclenche qu'un rechargement.
 export function useAppData(userId) {
-  const [profiles, setProfiles] = useState({});
-  const [sessions, setSessions] = useState([]);
-  const [hasMoreSessions, setHasMoreSessions] = useState(true);
-  const [sessionShells, setSessionShells] = useState([]);
-  const [sessionCounts, setSessionCounts] = useState({});
-  const [exercises, setExercises] = useState([]);
-  const [prs, setPrs] = useState([]);
-  const [presets, setPresets] = useState([]);
+  const cached = useRef(loadCache()).current; // lu une seule fois, au montage
+  const [profiles, setProfiles] = useState(cached?.data.profiles || {});
+  const [sessions, setSessions] = useState(cached?.data.sessions || []);
+  const [hasMoreSessions, setHasMoreSessions] = useState(cached?.data.hasMoreSessions ?? true);
+  const [sessionShells, setSessionShells] = useState(null); // null = pas (encore) chargé
+  const [exercises, setExercises] = useState(cached?.data.exercises || []);
+  const [prs, setPrs] = useState(cached?.data.prs || []);
+  const [presets, setPresets] = useState(cached?.data.presets || []);
   const [loading, setLoading] = useState(false);
+  // true dès qu'on a quelque chose de fiable à afficher (cache ou 1er chargement).
+  const [ready, setReady] = useState(!!cached);
 
   // Copies à jour pour les callbacks Realtime (qui ne se ré-abonnent pas à chaque rendu).
-  const sessionsRef = useRef([]);
-  const hasMoreRef = useRef(true);
+  const sessionsRef = useRef(sessions);
+  const hasMoreRef = useRef(hasMoreSessions);
   useEffect(() => { sessionsRef.current = sessions; hasMoreRef.current = hasMoreSessions; }, [sessions, hasMoreSessions]);
 
   // Recharge toute la fenêtre déjà chargée (au moins une page, plus si "charger
@@ -44,24 +56,33 @@ export function useAppData(userId) {
     setHasMoreSessions(page.hasMore);
   }, []);
 
+  const shellsWanted = useRef(false);
   const reloaders = useRef({
     profiles: async () => setProfiles(await getAllProfiles()),
     exercises: async () => setExercises(await getExercises()),
     prs: async () => setPrs(await getAllPRs()),
     presets: async () => setPresets(await getPresets()),
-    // Version légère de tout l'historique + compteurs : à recharger dès qu'une séance bouge.
-    shells: async () => {
-      const [shells, counts] = await Promise.all([getSessionShells(), getSessionCountsByUser()]);
-      setSessionShells(shells);
-      setSessionCounts(counts);
-    },
+    // Version légère de tout l'historique : seulement si un écran l'a demandée.
+    shells: async () => { if (shellsWanted.current) setSessionShells(await getSessionShells()); },
   });
 
+  const loadShells = useCallback(() => {
+    if (shellsWanted.current) return;
+    shellsWanted.current = true;
+    reloaders.current.shells().catch((e) => console.error("[useAppData] shells", e));
+  }, []);
+
+  const lastRefreshAt = useRef(0);
   const refresh = useCallback(async () => {
     setLoading(true);
+    lastRefreshAt.current = Date.now();
     try {
       const r = reloaders.current;
       await Promise.all([r.profiles(), reloadSessionPage(), r.shells(), r.exercises(), r.prs(), r.presets()]);
+      setReady(true);
+    } catch (e) {
+      // Hors ligne ou erreur réseau : on garde ce qui est affiché (cache).
+      console.error("[useAppData] refresh", e);
     } finally {
       setLoading(false);
     }
@@ -95,7 +116,7 @@ export function useAppData(userId) {
     sessionIds.forEach((id) => id && pending.current.sessionIds.add(id));
     clearTimeout(flushTimer.current);
     if (immediate) return flush();
-    flushTimer.current = setTimeout(flush, 300);
+    flushTimer.current = setTimeout(() => flush().catch((e) => console.error("[useAppData] flush", e)), 300);
   }, [flush]);
 
   const refreshSessions = useCallback((ids) => invalidate({ sessionIds: ids }, { immediate: true }), [invalidate]);
@@ -119,6 +140,9 @@ export function useAppData(userId) {
 
   useEffect(() => {
     if (!userId) return;
+    // Cache d'un autre compte (cas rare : changement de compte) : on attend les
+    // vraies données avant de considérer l'état comme fiable et de le remettre en cache.
+    if (cached && cached.userId !== userId) setReady(false);
     refresh();
 
     // Les events de suppression ne contiennent que la clé primaire (old), d'où les
@@ -143,15 +167,36 @@ export function useAppData(userId) {
       .on(...on("personal_records", () => invalidate({ keys: ["prs"] })))
       .subscribe();
 
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastRefreshAt.current > STALE_AFTER_MS) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       clearTimeout(flushTimer.current);
+      document.removeEventListener("visibilitychange", onVisible);
       supabase.removeChannel(channel);
     };
-  }, [userId, refresh, invalidate]);
+  }, [userId, cached, refresh, invalidate]);
 
-  // Aplati session.entries en un tableau plat {sessionId, userId, exercises, photo, submittedAt},
-  // pratique pour les calculs transverses sur la fenêtre chargée (comparaison de
-  // séances passées, volume du feed...).
+  // Sauvegarde du cache (après le 1er vrai chargement, regroupée sur 500 ms). On ne
+  // garde que la première page de séances : le cache reste petit, et les pages plus
+  // anciennes se rechargent à la demande.
+  useEffect(() => {
+    if (!userId || !ready) return;
+    const timer = setTimeout(() => {
+      const truncated = sessions.length > SESSIONS_PAGE_SIZE;
+      saveCache(userId, {
+        profiles, exercises, prs, presets,
+        sessions: truncated ? sessions.slice(0, SESSIONS_PAGE_SIZE) : sessions,
+        hasMoreSessions: truncated || hasMoreSessions,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [userId, ready, profiles, sessions, hasMoreSessions, exercises, prs, presets]);
+
+  // Aplati session.entries en un tableau plat {sessionId, userId, exercises, ...},
+  // pratique pour les calculs transverses sur la fenêtre chargée (classement).
   const entries = useMemo(() => {
     const flat = [];
     sessions.forEach((s) => {
@@ -160,18 +205,10 @@ export function useAppData(userId) {
     return flat;
   }, [sessions]);
 
-  const entriesBySession = useMemo(() => {
-    const map = {};
-    entries.forEach((e) => {
-      map[e.sessionId] = map[e.sessionId] || {};
-      map[e.sessionId][e.userId] = e;
-    });
-    return map;
-  }, [entries]);
-
   return {
+    cachedUserId: cached?.userId || null, ready, loading,
     profiles, sessions, hasMoreSessions, loadMoreSessions,
-    sessionShells, sessionCounts,
-    exercises, prs, presets, entries, entriesBySession, loading, refresh, refreshSessions, refreshData,
+    sessionShells, loadShells,
+    exercises, prs, presets, entries, refreshSessions, refreshData,
   };
 }

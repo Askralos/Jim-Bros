@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { Dumbbell } from "lucide-react";
 import { styles } from "./lib/styles";
 import { COLORS } from "./lib/constants";
@@ -9,6 +9,8 @@ import { createPreset, updatePreset, deletePreset } from "./lib/api/presets";
 import { presetToExercises, personalizeSession } from "./lib/utils";
 import { FavoritesProvider } from "./components/Favorites";
 import { useAppData } from "./hooks/useAppData";
+import { clearCache } from "./lib/cache";
+import { lazyScreen } from "./lib/lazyScreen";
 
 import { AuthScreen } from "./components/AuthScreen";
 import { TopBar, BottomNav, NewSessionChooser } from "./components/Nav";
@@ -17,12 +19,12 @@ import { NewSession } from "./components/NewSession";
 import { SessionModal } from "./components/SessionModal";
 
 // Écrans secondaires chargés à la demande : le premier affichage (accueil, nouvelle
-// séance) n'embarque que le nécessaire. Profil et Exercices importent recharts (lourd).
-const ProfileScreen = lazy(() => import("./components/ProfileScreen").then((m) => ({ default: m.ProfileScreen })));
-const ExercisesLibrary = lazy(() => import("./components/ExercisesLibrary").then((m) => ({ default: m.ExercisesLibrary })));
-const CalendarView = lazy(() => import("./components/CalendarView").then((m) => ({ default: m.CalendarView })));
-const Friends = lazy(() => import("./components/Friends").then((m) => ({ default: m.Friends })));
-const Leaderboard = lazy(() => import("./components/Leaderboard").then((m) => ({ default: m.Leaderboard })));
+// séance) n'embarque que le nécessaire.
+const ProfileScreen = lazyScreen(() => import("./components/ProfileScreen"), "ProfileScreen");
+const ExercisesLibrary = lazyScreen(() => import("./components/ExercisesLibrary"), "ExercisesLibrary");
+const CalendarView = lazyScreen(() => import("./components/CalendarView"), "CalendarView");
+const Friends = lazyScreen(() => import("./components/Friends"), "Friends");
+const Leaderboard = lazyScreen(() => import("./components/Leaderboard"), "Leaderboard");
 
 const LazyFallback = () => (
   <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
@@ -39,18 +41,31 @@ export default function App() {
   const [newSessionExercises, setNewSessionExercises] = useState(null);
 
   useEffect(() => {
-    getSession().then((s) => { setAuthSession(s); setBooting(false); });
+    getSession().then((s) => {
+      if (!s) clearCache(); // session expirée : le cache ne doit pas survivre à la déconnexion
+      setAuthSession(s);
+      setBooting(false);
+    });
     const sub = onAuthStateChange((s) => setAuthSession(s));
     return () => sub.unsubscribe();
   }, []);
 
-  const userId = authSession?.user?.id || null;
+  const authUserId = authSession?.user?.id || null;
   const {
-    profiles, sessions: rawSessions, hasMoreSessions, loadMoreSessions, sessionShells, sessionCounts,
-    exercises, prs, presets, entries, loading, refreshSessions, refreshData,
-  } = useAppData(userId);
+    cachedUserId, ready, loading,
+    profiles, sessions: rawSessions, hasMoreSessions, loadMoreSessions, sessionShells, loadShells,
+    exercises, prs, presets, entries, refreshSessions, refreshData,
+  } = useAppData(authUserId);
+  // Tant que la session se vérifie (parfois un aller-retour réseau), on affiche déjà
+  // l'app avec les données en cache du dernier compte connecté sur cet appareil.
+  const userId = authUserId || (booting ? cachedUserId : null);
   // Chaque séance vue avec mon titre/ma photo perso s'il y en a (voir personalizeSession).
   const sessions = useMemo(() => rawSessions.map((s) => personalizeSession(s, userId)), [rawSessions, userId]);
+
+  // Tout l'historique allégé n'est chargé que pour les écrans qui s'en servent.
+  useEffect(() => {
+    if (authUserId && (view === "friends" || view === "leaderboard")) loadShells();
+  }, [authUserId, view, loadShells]);
 
   const prsByUser = useMemo(() => {
     const map = {};
@@ -74,15 +89,14 @@ export default function App() {
   const handleUpdatePreset = async (id, name, exs) => { await updatePreset(id, name, exs); await refreshData("presets"); };
   const handleDeletePreset = async (id) => { await deletePreset(id); await refreshData("presets"); };
 
-  if (booting) {
+  if (!userId) {
+    if (!booting) return <AuthScreen />;
     return (
       <div style={styles.bootScreen}>
         <Dumbbell size={28} color={COLORS.lime} />
       </div>
     );
   }
-
-  if (!authSession) return <AuthScreen />;
 
   const profile = profiles[userId];
   if (!profile) {
@@ -104,7 +118,7 @@ export default function App() {
 
         {view === "home" && (
           <Home
-            currentUserId={userId} profiles={profiles} sessions={sessions}
+            currentUserId={userId} profiles={profiles} sessions={sessions} ready={ready}
             onOpenSession={setModalSessionId}
             onNewSession={() => setShowNewSessionChooser(true)}
             onSeeCalendar={() => setView("calendar")}
@@ -168,7 +182,7 @@ export default function App() {
         {view === "leaderboard" && (
           <Suspense fallback={<LazyFallback />}>
             <Leaderboard
-              profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells} sessionCounts={sessionCounts}
+              profiles={profiles} entries={entries} sessions={sessions} sessionShells={sessionShells}
               currentUserId={userId} exerciseList={exercises} prsByUser={prsByUser}
             />
           </Suspense>

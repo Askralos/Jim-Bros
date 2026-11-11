@@ -1,15 +1,15 @@
-import { useState, useRef, useEffect } from "react";
-import { Camera, Check, Loader2, GitCompare } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Check } from "lucide-react";
 import { styles } from "../lib/styles";
-import { COLORS, SESSION_FEELINGS } from "../lib/constants";
+import { COLORS } from "../lib/constants";
 import { todayKey } from "../lib/utils";
-import { ExercisesEditor, cleanExercises, emptyExercise } from "./ExercisesEditor";
+import { cleanExercises, emptyExercise } from "./ExercisesEditor";
+import { ExercisesSection, FeelingCommentFields, SubmitButton } from "./EntryFields";
 import { DurationInput } from "./DurationInput";
-import { GuestPills } from "./GuestPicker";
+import { CompanionsPicker } from "./GuestPicker";
 import { SessionTypePicker } from "./SessionTypes";
 import { FloatingTimer } from "./FloatingTimer";
-import { ComparePicker, CompareReference } from "./CompareSession";
-import { uploadPhoto } from "../lib/api/storage";
+import { PhotoInput } from "./PhotoInput";
 import { getLatestWeight } from "../lib/api/profiles";
 
 export function NewSession({ currentUserId, otherProfiles, exerciseList, sessions, initialExercises, onSubmit, onCancel }) {
@@ -28,22 +28,11 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [compareSessionId, setCompareSessionId] = useState(null);
-  const [showComparePicker, setShowComparePicker] = useState(false);
-  const fileRef = useRef(null);
-  const galleryRef = useRef(null);
-  const compareSession = sessions.find((s) => s.id === compareSessionId) || null;
 
   useEffect(() => {
     getLatestWeight(currentUserId).then((w) => { if (w != null) setBodyweightKg(w); }).catch(() => {});
   }, [currentUserId]);
 
-  const togglePart = (id) => setParticipants((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const handlePhoto = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploading(true);
-    try { setPhoto(await uploadPhoto(file, "sessions", { maxW: 720, quality: 0.7 })); } finally { setUploading(false); }
-  };
   const clean = cleanExercises(exercises);
   const valid = clean.length > 0 && !!title.trim() && !!photo && !uploading;
 
@@ -78,19 +67,11 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
   return (
     <div style={styles.screen}>
       <h2 style={styles.sectionTitle}>Nouvelle séance</h2>
-      <div style={styles.photoZone} onClick={() => fileRef.current?.click()}>
-        {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} /> : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-            <Camera size={22} /><span style={{ fontSize: 12 }}>{uploading ? "Envoi..." : "Prendre une photo"}</span>
-          </div>
-        )}
-      </div>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handlePhoto} />
-      <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: -6, marginBottom: 12 }}>
-        <button style={styles.linkBtn} onClick={() => galleryRef.current?.click()}>ou choisir depuis la galerie</button>
-        {touched && !photo && <span style={{ fontSize: 11, color: COLORS.flame }}>Photo requise</span>}
-      </div>
+      <PhotoInput
+        value={photo} onChange={setPhoto} onUploadingChange={setUploading}
+        folder="sessions" maxW={720} quality={0.7}
+        aside={touched && !photo && <span style={{ fontSize: 11, color: COLORS.flame }}>Photo requise</span>}
+      />
 
       <input style={styles.input} placeholder="Titre (ex: Push day)" value={title} onChange={(e) => setTitle(e.target.value)} />
       {touched && !title.trim() && <p style={{ color: COLORS.flame, fontSize: 12, marginTop: -6, marginBottom: 8 }}>Titre requis</p>}
@@ -105,66 +86,17 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
       <label style={styles.label}>Ton poids aujourd'hui (kg)</label>
       <input style={styles.input} type="number" placeholder="Poids du jour" value={bodyweightKg} onChange={(e) => setBodyweightKg(e.target.value)} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 8 }}>
-        <span style={styles.label}>Tes exercices</span>
-        {!compareSession && (
-          <button style={{ ...styles.linkBtn, display: "flex", alignItems: "center", gap: 4 }} onClick={() => setShowComparePicker(true)}>
-            <GitCompare size={13} />Comparer
-          </button>
-        )}
-      </div>
+      <ExercisesSection exercises={exercises} onChange={setExercises} exerciseList={exerciseList} sessions={sessions} currentUserId={currentUserId} />
+      {touched && clean.length === 0 && <p style={{ color: COLORS.flame, fontSize: 12, marginTop: 6 }}>Choisis au moins un exercice</p>}
 
-      {compareSession && (
-        <CompareReference
-          session={compareSession}
-          currentUserId={currentUserId}
-          onChange={() => setShowComparePicker(true)}
-          onRemove={() => setCompareSessionId(null)}
-        />
-      )}
-
-      <ExercisesEditor exercises={exercises} onChange={setExercises} exerciseList={exerciseList} />
-
-      {showComparePicker && (
-        <ComparePicker
-          sessions={sessions}
-          currentUserId={currentUserId}
-          onClose={() => setShowComparePicker(false)}
-          onSelect={(id) => { setCompareSessionId(id); setShowComparePicker(false); }}
-        />
-      )}
-
-      <label style={{ ...styles.label, display: "block", marginTop: 18 }}>Ton feeling (optionnel)</label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-        {SESSION_FEELINGS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFeeling((cur) => (cur === f.key ? null : f.key))}
-            style={{ ...styles.tabPill, ...(feeling === f.key ? styles.tabPillActive : {}) }}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <label style={styles.label}>Ton commentaire (optionnel)</label>
-      <textarea
-        style={{ ...styles.input, minHeight: 72, resize: "vertical", marginBottom: 14 }}
-        placeholder="Comment as-tu vécu la séance ?"
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-      />
+      <FeelingCommentFields feeling={feeling} onFeelingChange={setFeeling} comment={comment} onCommentChange={setComment} />
 
       <label style={styles.label}>Fait avec (optionnel)</label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, alignItems: "center" }}>
-        {otherProfiles.map((p) => (
-          <button key={p.id} onClick={() => togglePart(p.id)} style={{ ...styles.tabPill, ...(participants.includes(p.id) ? styles.tabPillActive : {}) }}>
-            {p.display_name}
-          </button>
-        ))}
-        <GuestPills guests={guests} onChange={setGuests} />
-      </div>
+      <CompanionsPicker
+        profiles={otherProfiles}
+        selectedIds={participants} onSelectedChange={setParticipants}
+        guests={guests} onGuestsChange={setGuests}
+      />
 
       <FloatingTimer />
 
@@ -172,18 +104,7 @@ export function NewSession({ currentUserId, otherProfiles, exerciseList, session
 
       <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
         <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onCancel} disabled={submitting}>Annuler</button>
-        <button style={{ ...styles.primaryBtn, flex: 1 }} onClick={submit} disabled={submitting}>
-          {submitting ? (
-            <>
-              <Loader2 size={16} style={{ marginRight: 6, animation: "spin 0.7s linear infinite" }} />
-              Publication...
-            </>
-          ) : (
-            <>
-              <Check size={16} style={{ marginRight: 6 }} />Publier
-            </>
-          )}
-        </button>
+        <SubmitButton busy={submitting} onClick={submit} icon={Check} label="Publier" busyLabel="Publication..." style={{ flex: 1 }} />
       </div>
     </div>
   );

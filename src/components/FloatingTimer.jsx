@@ -18,7 +18,7 @@ function save(state) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* stockage indisponible : le chrono marche quand même */ }
 }
 
-export const fmtClock = (ms) => {
+const fmtClock = (ms) => {
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -70,7 +70,6 @@ export function FloatingTimer({ bottom = "calc(84px + env(safe-area-inset-bottom
       try { navigator.vibrate?.([300, 120, 300]); } catch { /* pas de vibreur */ }
       beep(audioRef.current);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cdRunning, cdLeft]);
 
   const toggleStopwatch = () => {

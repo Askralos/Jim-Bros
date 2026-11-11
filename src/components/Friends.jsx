@@ -7,9 +7,11 @@ import { getUserHistory } from "../lib/api/sessions";
 import { SessionHistoryList } from "./SessionTypes";
 import { Avatar } from "./Avatar";
 import { MetricCard } from "./MetricCard";
+import { Modal } from "./Modal";
 
-export function Friends({ currentUserId, profiles, sessionShells, prsByUser, onOpenSession }) {
+export function Friends({ currentUserId, profiles, sessionShells: shells, prsByUser, onOpenSession }) {
   const others = Object.values(profiles);
+  const sessionShells = shells || []; // null tant que l'historique allégé charge
 
   const together = (id) => sessionShells.filter((s) => s.entryUserIds.includes(currentUserId) && s.entryUserIds.includes(id)).length;
   const countFor = (id) => sessionShells.filter((s) => s.entryUserIds.includes(id)).length;
@@ -56,7 +58,7 @@ export function Friends({ currentUserId, profiles, sessionShells, prsByUser, onO
             <div style={{ flex: 1 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{p.display_name}{p.id === currentUserId ? " (toi)" : ""}</span>
               <div style={{ fontSize: 11, color: COLORS.muted }}>
-                {count} séances · {tog} avec toi{lastDate ? ` · dernière ${fmtDate(lastDate)}` : ""}
+                {shells ? `${count} séances · ${tog} avec toi${lastDate ? ` · dernière ${fmtDate(lastDate)}` : ""}` : "…"}
               </div>
             </div>
             <ChevronRight size={16} color={COLORS.muted} />
@@ -86,53 +88,51 @@ function FriendProfileModal({ userId, profile, prs, onClose, onOpenSession }) {
   const hasMeasurements = profile.arm_cm || profile.chest_cm || profile.waist_cm || profile.thigh_cm;
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Avatar profile={profile} size={44} />
-            <div>
-              <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{profile.display_name}</p>
-              {profile.objectif && <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{profile.objectif}</p>}
-            </div>
+    <Modal onClose={onClose}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Avatar profile={profile} size={44} />
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, margin: 0 }}>{profile.display_name}</p>
+            {profile.objectif && <p style={{ fontSize: 12, color: COLORS.muted, margin: 0 }}>{profile.objectif}</p>}
           </div>
-          <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
         </div>
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <MetricCard label="Poids" value={profile.weight_kg ? `${profile.weight_kg} kg` : "—"} />
-          <MetricCard label="Séances" value={history ? myEntries.length : "…"} />
-          <MetricCard label="Meilleure progression" value={bestProgress ? `${bestProgress.name} +${bestProgress.delta}kg` : "—"} />
-        </div>
-
-        {profile.height_cm && <p style={{ fontSize: 12, color: COLORS.muted, marginBottom: 4 }}>Taille : {profile.height_cm} cm</p>}
-        {hasMeasurements && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-            {profile.arm_cm && <span style={styles.setChip}>Bras {profile.arm_cm}cm</span>}
-            {profile.chest_cm && <span style={styles.setChip}>Poitrine {profile.chest_cm}cm</span>}
-            {profile.waist_cm && <span style={styles.setChip}>Taille {profile.waist_cm}cm</span>}
-            {profile.thigh_cm && <span style={styles.setChip}>Cuisse {profile.thigh_cm}cm</span>}
-          </div>
-        )}
-
-        {prs.length > 0 && (
-          <>
-            <h2 style={{ ...styles.sectionTitle, marginTop: 4 }}>PR</h2>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-              {prs.map((pr) => (
-                <div key={pr.id} style={styles.prChip}>
-                  <span style={{ fontSize: 11, color: COLORS.muted }}>{pr.exercise}</span>
-                  <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: COLORS.lime }}>{pr.value}{pr.unit}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
-        {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
-        {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} limit={15} emptyText="Pas encore de séance postée." />}
+        <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
       </div>
-    </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <MetricCard label="Poids" value={profile.weight_kg ? `${profile.weight_kg} kg` : "—"} />
+        <MetricCard label="Séances" value={history ? myEntries.length : "…"} />
+        <MetricCard label="Meilleure progression" value={bestProgress ? `${bestProgress.name} +${bestProgress.delta}kg` : "—"} />
+      </div>
+
+      {profile.height_cm && <p style={{ fontSize: 12, color: COLORS.muted, marginBottom: 4 }}>Taille : {profile.height_cm} cm</p>}
+      {hasMeasurements && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+          {profile.arm_cm && <span style={styles.setChip}>Bras {profile.arm_cm}cm</span>}
+          {profile.chest_cm && <span style={styles.setChip}>Poitrine {profile.chest_cm}cm</span>}
+          {profile.waist_cm && <span style={styles.setChip}>Taille {profile.waist_cm}cm</span>}
+          {profile.thigh_cm && <span style={styles.setChip}>Cuisse {profile.thigh_cm}cm</span>}
+        </div>
+      )}
+
+      {prs.length > 0 && (
+        <>
+          <h2 style={{ ...styles.sectionTitle, marginTop: 4 }}>PR</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+            {prs.map((pr) => (
+              <div key={pr.id} style={styles.prChip}>
+                <span style={{ fontSize: 11, color: COLORS.muted }}>{pr.exercise}</span>
+                <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: COLORS.lime }}>{pr.value}{pr.unit}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h2 style={styles.sectionTitle}>Historique {history ? `(${myEntries.length})` : ""}</h2>
+      {!history && <p style={{ color: COLORS.muted, fontSize: 13 }}>Chargement...</p>}
+      {history && <SessionHistoryList entries={myEntries} onOpenSession={onOpenSession} limit={15} emptyText="Pas encore de séance postée." />}
+    </Modal>
   );
 }

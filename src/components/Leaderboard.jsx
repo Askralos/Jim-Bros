@@ -2,9 +2,10 @@ import { useState, useMemo } from "react";
 import { Flame } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS } from "../lib/constants";
-import { todayKey, norm, volumeOf, computeStreak } from "../lib/utils";
+import { norm, volumeOf, computeStreak } from "../lib/utils";
 
-export function Leaderboard({ profiles, entries, sessions, sessionShells, sessionCounts, currentUserId, exerciseList, prsByUser }) {
+export function Leaderboard({ profiles, entries, sessions, sessionShells: shells, currentUserId, exerciseList, prsByUser }) {
+  const sessionShells = shells || []; // null tant que l'historique allégé charge
   const [metric, setMetric] = useState("ratio");
   const [prQuery, setPrQuery] = useState("");
   const sessionById = useMemo(() => { const m = {}; sessions.forEach((s) => (m[s.id] = s)); return m; }, [sessions]);
@@ -26,9 +27,9 @@ export function Leaderboard({ profiles, entries, sessions, sessionShells, sessio
     const weeksSinceJoin = Math.max(1, (Date.now() - new Date(p.created_at).getTime()) / (7 * 24 * 3600 * 1000));
     return {
       userId: p.id, displayName: p.display_name,
-      // Ratio séances/semaine : sur tout l'historique (sessionCounts, une requête
-      // légère à part), pas juste la fenêtre paginée.
-      ratio: (sessionCounts[p.id] || 0) / weeksSinceJoin,
+      // Ratio séances/semaine : sur tout l'historique (sessionShells), pas juste la
+      // fenêtre paginée.
+      ratio: sessionShells.filter((s) => s.entryUserIds.includes(p.id)).length / weeksSinceJoin,
       volume: mine.filter((e) => e.session.date >= startOfMonthKey).reduce((t, e) => t + volumeOf(e.exercises), 0),
       streak: streakFor(p.id),
     };

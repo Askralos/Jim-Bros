@@ -1,15 +1,16 @@
-import { useState, useRef, useMemo, useEffect } from "react";
-import { Camera, Dumbbell, X, Pencil, Trash2, ChevronDown } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useState, useMemo, useEffect } from "react";
+import { Dumbbell, Pencil, Trash2, ChevronDown } from "lucide-react";
 import { styles } from "../lib/styles";
 import { COLORS, EXERCISE_TAGS, EXERCISE_ADMIN_USERNAMES } from "../lib/constants";
 import { exerciseSetHistoryByName, fmtDate, norm } from "../lib/utils";
-import { uploadPhoto } from "../lib/api/storage";
 import { addExercise, updateExercise, deleteExercise } from "../lib/api/exercises";
 import { getUserHistory } from "../lib/api/sessions";
 import { useExerciseFilter, ExerciseFilterBar, TagBadges } from "./ExercisePicker";
 import { PresetsEditor } from "./PresetsEditor";
 import { FavoriteStar } from "./Favorites";
+import { MiniLineChart } from "./MiniLineChart";
+import { Modal } from "./Modal";
+import { PhotoInput } from "./PhotoInput";
 
 const TRACK_METRICS = [
   { key: "weight", label: "Poids", unit: "kg" },
@@ -21,7 +22,6 @@ const TRACK_METRICS = [
 // toutes les séries d'une même séance s'empileraient sur un seul point.
 function ExerciseChart({ points, metric, onMetricChange }) {
   const active = TRACK_METRICS.find((m) => m.key === metric) || TRACK_METRICS[0];
-  const chartData = points.map((p, i) => ({ x: i + 1, date: p.date, value: p[active.key] }));
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10 }}>
       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -29,22 +29,8 @@ function ExerciseChart({ points, metric, onMetricChange }) {
           <button key={m.key} type="button" onClick={() => onMetricChange(m.key)} style={{ ...styles.tabPill, ...(metric === m.key ? styles.tabPillActive : {}) }}>{m.label}</button>
         ))}
       </div>
-      {chartData.length > 1 ? (
-        <div style={{ width: "100%", height: 140 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid stroke={COLORS.line} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="x" hide />
-              <YAxis hide domain={["dataMin", "dataMax + 1"]} />
-              <Tooltip
-                labelFormatter={(_, payload) => (payload?.[0] ? fmtDate(payload[0].payload.date) : "")}
-                contentStyle={{ background: COLORS.surface2, border: `1px solid ${COLORS.line}`, borderRadius: 8, fontSize: 12 }}
-                formatter={(v) => [`${v}${active.unit}`, active.label]}
-              />
-              <Line type="monotone" dataKey="value" stroke={COLORS.lime} strokeWidth={2} dot={{ r: 2 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {points.length > 1 ? (
+        <MiniLineChart points={points.map((p) => ({ label: fmtDate(p.date), value: p[active.key] }))} name={active.label} unit={active.unit} />
       ) : (
         <p style={{ color: COLORS.muted, fontSize: 12 }}>Fais au moins 2 séries de cet exercice pour voir la courbe.</p>
       )}
@@ -117,19 +103,8 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   const [form, setForm] = useState(() => (editingExercise ? { name: editingExercise.name, photo: editingExercise.photo_url, tags: editingExercise.tags || [] } : EMPTY_FORM));
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const fileRef = useRef(null);
-  const galleryRef = useRef(null);
 
   const toggleFormTag = (key) => setForm((f) => ({ ...f, tags: f.tags.includes(key) ? f.tags.filter((t) => t !== key) : [...f.tags, key] }));
-
-  const handlePhoto = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setUploading(true);
-    try {
-      const url = await uploadPhoto(file, "exercises", { maxW: 400 });
-      setForm((f) => ({ ...f, photo: url }));
-    } finally { setUploading(false); }
-  };
 
   const submit = async () => {
     if (!form.name.trim()) return;
@@ -148,38 +123,24 @@ function ExerciseFormModal({ editingExercise, currentUserId, onClose, onSaved })
   };
 
   return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontWeight: 700 }}>{editingExercise ? "Modifier l'exercice" : "Nouvel exercice"}</span>
-          <button style={styles.iconBtn} onClick={onClose}><X size={16} /></button>
-        </div>
-        <div style={styles.photoZone} onClick={() => fileRef.current?.click()}>
-          {form.photo ? (
-            <img src={form.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 10 }} />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: COLORS.muted }}>
-              <Camera size={22} /><span style={{ fontSize: 12 }}>{uploading ? "Envoi..." : "Photo d'exécution (optionnel)"}</span>
-            </div>
-          )}
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handlePhoto} />
-        <input ref={galleryRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handlePhoto} />
-        <button style={{ ...styles.linkBtn, marginTop: -6, marginBottom: 10 }} onClick={() => galleryRef.current?.click()}>ou choisir depuis la galerie</button>
-        <input style={styles.input} placeholder="Nom de l'exercice" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-        <label style={styles.label}>Groupes musculaires</label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {EXERCISE_TAGS.map((t) => (
-            <button key={t.key} type="button" onClick={() => toggleFormTag(t.key)} style={{ ...styles.tabPill, ...(form.tags.includes(t.key) ? styles.tabPillActive : {}) }}>{t.label}</button>
-          ))}
-        </div>
-        {error && <p style={{ color: COLORS.flame, fontSize: 13, marginTop: -6, marginBottom: 8 }}>{error}</p>}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onClose}>Annuler</button>
-          <button style={{ ...styles.primaryBtn, flex: 1 }} disabled={!form.name.trim() || uploading} onClick={submit}>{editingExercise ? "Enregistrer" : "Ajouter"}</button>
-        </div>
+    <Modal title={editingExercise ? "Modifier l'exercice" : "Nouvel exercice"} onClose={onClose}>
+      <PhotoInput
+        value={form.photo} onChange={(photo) => setForm((f) => ({ ...f, photo }))} onUploadingChange={setUploading}
+        folder="exercises" maxW={400} placeholder="Photo d'exécution (optionnel)"
+      />
+      <input style={styles.input} placeholder="Nom de l'exercice" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+      <label style={styles.label}>Groupes musculaires</label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {EXERCISE_TAGS.map((t) => (
+          <button key={t.key} type="button" onClick={() => toggleFormTag(t.key)} style={{ ...styles.tabPill, ...(form.tags.includes(t.key) ? styles.tabPillActive : {}) }}>{t.label}</button>
+        ))}
       </div>
-    </div>
+      {error && <p style={{ color: COLORS.flame, fontSize: 13, marginTop: -6, marginBottom: 8 }}>{error}</p>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={{ ...styles.secondaryBtn, flex: 1 }} onClick={onClose}>Annuler</button>
+        <button style={{ ...styles.primaryBtn, flex: 1 }} disabled={!form.name.trim() || uploading} onClick={submit}>{editingExercise ? "Enregistrer" : "Ajouter"}</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -249,15 +210,9 @@ export function ExercisesLibrary({ exerciseList, currentUserId, currentUsername,
           </div>
 
           {preview && (
-            <div style={styles.modalBackdrop} onClick={() => setPreview(null)}>
-              <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontWeight: 700 }}>{preview.name}</span>
-                  <button style={styles.iconBtn} onClick={() => setPreview(null)}><X size={16} /></button>
-                </div>
-                <img src={preview.photo_url} alt="" style={{ width: "100%", borderRadius: 10 }} />
-              </div>
-            </div>
+            <Modal title={preview.name} onClose={() => setPreview(null)}>
+              <img src={preview.photo_url} alt="" style={{ width: "100%", borderRadius: 10 }} />
+            </Modal>
           )}
 
           {formTarget && (

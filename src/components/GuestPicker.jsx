@@ -46,3 +46,18 @@ export function GuestPills({ guests, onChange }) {
     </>
   );
 }
+
+// "Fait avec" : les potes du squad à cocher, suivis des invités sans compte.
+export function CompanionsPicker({ profiles, selectedIds, onSelectedChange, guests, onGuestsChange }) {
+  const toggle = (id) => onSelectedChange(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, alignItems: "center" }}>
+      {profiles.map((p) => (
+        <button key={p.id} type="button" onClick={() => toggle(p.id)} style={{ ...styles.tabPill, ...(selectedIds.includes(p.id) ? styles.tabPillActive : {}) }}>
+          {p.display_name}
+        </button>
+      ))}
+      <GuestPills guests={guests} onChange={onGuestsChange} />
+    </div>
+  );
+}
